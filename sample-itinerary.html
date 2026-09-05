@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>行程來源格式範例</title>
+</head>
+<body>
+
+<!--
+  這是 app/seed.py 的資料來源格式範例。
+
+  真正的 itinerary-source.html（含實際訂房、航班、訂位代碼）刻意不進 repo。
+  seed.py 是人工從這種頁面轉出來的，不是程式自動解析的 —— 所以這份範例不需要
+  嚴格的結構，只要看得懂哪些資訊會被轉成事件欄位即可。
+
+  一個事件（app/seed.py 的一列）長這樣：
+      (start, end, tz, category, city, title, location, code, warning, notes)
+
+  start / end   'YYYY-MM-DDTHH:MM'，該時區的當地時間（end 可為 None）
+  tz            Europe/Madrid（預設）／Europe/Istanbul／Asia/Taipei
+  category      transport / sight / meal / hotel / prep
+  city          卡片副標顯示
+  title         卡片主標
+  location      會直接丟給 Google 地圖搜尋，寫官方英文名命中率最高
+  code          訂位代碼，卡片上放大顯示；沒有就空字串
+  warning       ⚠ 注意事項，顯示在卡片最上方
+  notes         其他細節
+
+  沒寫時間的行程用這個慣例估：早上 09:30／午餐 13:30／下午 15:00／晚餐 20:30。
+  改完 seed.py 一定要跑 `python selfcheck.py`，必須 PASS。
+-->
+
+<h1>範例行程 2026</h1>
+<p>2026/12/20（日）－ 2027/1/4（一）</p>
+
+<h2>每日行程</h2>
+
+<h3>12/20 週日　抵達日</h3>
+<ul>
+  <li>10:25 抵達馬德里（航班編號）；入境採指紋與臉部辨識，隊伍較長
+      <br>→ transport ／ location: Adolfo Suárez Madrid–Barajas Airport
+      <br>→ warning: 入境採 EES 指紋與臉部辨識，隊伍較長，別急</li>
+  <li>13:00 某某公寓入住（12/20–12/26・6 晚）
+      <br>→ hotel ／ notes: 已下訂・總價・幾人幾晚</li>
+  <li>傍晚：太陽門廣場、馬約爾廣場散步
+      <br>→ sight ／ 沒寫時間 → 估 18:00</li>
+  <li>團圓晚餐 → meal ／ 估 20:30</li>
+</ul>
+
+<h3>12/26 週六　移動日</h3>
+<ul>
+  <li>10:15 退房 → 車站 → prep</li>
+  <li>高鐵 11:22 → 12:57（已購，訂位代碼 XXXXXX，5 號車廂）
+      <br>→ transport ／ code: XXXXXX
+      <br>→ start 11:22、end 12:57（這種有明確班次的一定要用真實時間，不能估）</li>
+  <li>13:15 飯店放行李 → hotel</li>
+  <li>下午：老城景點 → sight ／ 估 15:00</li>
+</ul>
+
+<h3>1/3 週日　返程・跨時區</h3>
+<ul>
+  <li>03:00 飯店接駁 → 航廈 → transport ／ tz: Europe/Madrid</li>
+  <li>06:30 起飛 → transport；抵達時間寫在 notes（那是另一個時區）</li>
+  <li>12:05 抵達轉機點 → 另一筆事件，tz: Europe/Istanbul
+      <br>→ 跨時區時「抵達」要獨立成一筆，時間軸才會在正確的時刻推進</li>
+</ul>
+
+<h2>注意事項（會被帶進事件的 warning 欄位）</h2>
+<ul>
+  <li>12/31 中午前把 1/1 的食材買齊 —— 超市提早關、隔天全關</li>
+  <li>某某公園冬季只開到 17:30，別排太晚</li>
+  <li>地鐵與熱門景點周邊是扒手重災區</li>
+  <li>12/25、1/1 幾乎全城休息，只排戶外行程</li>
+</ul>
+
+</body>
+</html>

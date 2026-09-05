@@ -1,0 +1,15 @@
+data/
+__pycache__/
+*.pyc
+.venv/
+app.tar.gz
+
+# 真實行程（含訂房、航班、訂位代碼）留在本機，不進 repo。
+# 格式範例見 sample-itinerary.html。
+itinerary-source.html
+
+# 原始需求書，含真實訂位代碼與對外網域
+SPEC.md
+
+# 真實行程的種子資料，本機／部署專用；repo 裡的 app/seed.py 是合成示範資料
+app/seed_local.py

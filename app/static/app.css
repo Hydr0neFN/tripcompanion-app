@@ -1,0 +1,286 @@
+/* tripcompanion — dark, mobile-first, elderly-friendly large type.
+
+   捲動順不順，關鍵全在「捲動中不要改版面」：
+   - 卡片 scroll-snap-align:start，頂端釘在錨線上 → 展開只往下長，上方零位移。
+   - 焦點只改邊框／陰影／透明度（純繪製），字級與 margin 一律固定，不觸發 reflow。
+   - 內容展開延到捲動停止才做，所以甩動過程中整條列表完全不 reflow。            */
+:root{
+  --bg:#0b0f16; --bg2:#121826; --card:#18202f; --card2:#1e293b;
+  --line:#2a3547; --fg:#f2f5fa; --dim:#9fb0c8; --dim2:#748099;
+  --accent:#4da3ff; --warn-bg:#3a2410; --warn-fg:#ffca6b; --warn-line:#8a5a12;
+  --transport:#4da3ff; --sight:#b18cff; --meal:#ff9a4d; --hotel:#3fd39a; --prep:#ffd24d;
+  --radius:16px;
+  --ease:cubic-bezier(.22,.61,.36,1);
+  font-size:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* 作者樣式的 display 會蓋掉 UA 的 [hidden]{display:none} — 這裡把它釘回來 */
+[hidden]{display:none!important}
+html,body{margin:0;padding:0}
+/* scroll-padding-top 由 JS 依實際頁首高度寫入，只在 resize 時重寫。
+   用 proximity 不是 mandatory。mandatory 規定「停下來一定要停在吸附點上」，
+   吸附點大約每 250px 一個，手指一離開瀏覽器就把落點修到最近那一個 —— 慣性沒機會跑，
+   感覺就是「一放手就鎖死」。proximity 只在自然落點本來就靠近吸附點時才吸，
+   甩出去就讓它一路滑完。停在兩張之間的收尾由 settle() 平滑滑進錨線負責。 */
+html{scroll-snap-type:y proximity}
+body{
+  background:var(--bg); color:var(--fg);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,sans-serif;
+  line-height:1.55; padding-bottom:2rem;
+  -webkit-text-size-adjust:100%;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+
+/* ------------------------------------------------------------------ topbar */
+.topbar{
+  position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:.75rem;
+  padding:.7rem 1rem; padding-top:calc(.7rem + env(safe-area-inset-top));
+  background:rgba(11,15,22,.94); backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-main{flex:1;min-width:0}
+/* 兩行都強制單行：頁首一換行就變高，snapTop() 跟著漂，
+   IO 的錨線帶和對齊用的線就不再是同一條 → 焦點會判到隔壁那張。 */
+.trip-title,.trip-clock{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-title{font-size:1.1rem;font-weight:800;letter-spacing:.03em}
+.trip-clock{font-size:.85rem;color:var(--dim);font-variant-numeric:tabular-nums}
+.edit-toggle{
+  background:var(--card2);border:1px solid var(--line);border-radius:999px;
+  padding:.5rem 1.1rem;font-size:.95rem;font-weight:600;color:var(--dim);
+}
+.edit-toggle.on{background:var(--accent);border-color:var(--accent);color:#04121f}
+
+/* ---------------------------------------------------------------- timeline */
+/* 上下留白：第一張要能停到錨線，最後一張也要 */
+.timeline{padding:50dvh calc(.85rem + 2.3rem) calc(100dvh - 10rem) .85rem;
+  max-width:640px;margin:0 auto}
+.loading{color:var(--dim);text-align:center;padding:3rem 0}
+
+/* 日期標籤在卡片內：時間軸因此是一串等間距、每一張都是吸附點的卡，
+   沒有任何「沒有卡片」的空隙 —— 吸附判定不會在日期交界翻面。 */
+.day-tag{
+  display:flex;align-items:center;gap:.6rem;
+  padding:.6rem 1rem .1rem;
+  color:var(--dim);font-size:.92rem;font-weight:800;letter-spacing:.08em;
+}
+.day-tag::after{content:"";flex:1;height:1px;background:var(--line)}
+.card.past .day-tag{color:var(--dim2)}
+.day-tag + .card-head{padding-top:.45rem}
+
+/* -------------------------------------------------------------------- card */
+.card{
+  position:relative; background:var(--card); border:1px solid var(--line);
+  border-radius:var(--radius); margin:.55rem 0; overflow:hidden;
+  border-left:5px solid var(--cat,var(--dim2));
+  scroll-snap-align:start; scroll-snap-stop:normal;
+  /* 只有繪製屬性會動 — 沒有任何一項會觸發 layout */
+  transition:opacity .24s var(--ease), border-color .24s var(--ease),
+             box-shadow .24s var(--ease), background-color .24s var(--ease);
+}
+/* 沒有鎖定的卡一律壓暗；鎖定的那張亮起來、浮起來。
+   刻意不用 transform:scale —— 規範上吸附區取的是 transform 後的邊框盒，
+   一縮放吸附座標就跟著漂，等於把剛修掉的問題請回來。純繪製屬性就夠了。 */
+.card.past{opacity:.42}
+.card:not(.past):not(.focusview){opacity:.62}
+.card.focusview{
+  opacity:1;
+  border-color:var(--cat,var(--line));
+  background:linear-gradient(180deg,var(--card2),var(--card));
+  box-shadow:0 10px 30px rgba(0,0,0,.5);
+}
+.card.now{border-color:var(--cat,var(--accent))}
+.card.now.focusview{box-shadow:0 0 0 1px var(--cat,var(--accent)) inset, 0 12px 34px rgba(0,0,0,.5)}
+
+.card-head{
+  display:flex;gap:.8rem;align-items:flex-start;width:100%;
+  background:none;border:0;text-align:left;padding:.9rem 1rem;
+}
+.cat-icon{
+  flex:none;width:2.9rem;height:2.9rem;border-radius:13px;display:grid;place-items:center;
+  font-size:1.55rem;background:color-mix(in srgb,var(--cat) 20%,transparent);
+}
+.head-text{flex:1;min-width:0}
+.card-time{
+  font-size:1.3rem;font-weight:800;color:var(--cat);font-variant-numeric:tabular-nums;
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;
+}
+.tz-tag{font-size:.72rem;font-weight:700;color:var(--warn-fg);
+  background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:6px;padding:.05rem .4rem}
+.card-title{font-size:1.25rem;font-weight:700;line-height:1.4;margin-top:.15rem;word-break:break-word}
+.card-city{font-size:.9rem;color:var(--dim);margin-top:.1rem}
+.now-badge{
+  display:inline-block;font-size:.74rem;font-weight:800;letter-spacing:.16em;
+  color:#04121f;background:var(--cat);border-radius:999px;padding:.12rem .65rem;margin-bottom:.35rem;
+}
+.chev{flex:none;color:var(--dim2);font-size:1.1rem;align-self:center;
+  transition:transform .24s var(--ease),opacity .18s}
+.card.settled .chev{transform:rotate(180deg);opacity:0}
+
+/* 展開：grid 0fr→1fr 是唯一會動到高度的東西，而且只在捲動停止後才跑。
+   .settled 一拿掉，transition 宣告跟著消失 → 收合是瞬間的，
+   不會在捲動途中拖著上方的卡一起動。 */
+.fold{display:grid;grid-template-rows:0fr}
+.card.settled .fold{
+  grid-template-rows:1fr;
+  /* --fold-ms 由 JS 依展開高度算：140 + 55·ln(1+Δh/80)，夾在 150–320ms。
+     短卡不拖、長卡不暴衝，全部收在同一個節奏帶裡。 */
+  transition:grid-template-rows var(--fold-ms,260ms) var(--ease);
+}
+.fold-in{overflow:hidden;min-height:0;opacity:0;transform:translateY(-6px)}
+.card.settled .fold-in{
+  opacity:1;transform:none;
+  /* 高度動畫這下每次都會真的跑，內容跟著它稍晚一點到才合拍 */
+  transition:opacity 180ms var(--ease) 60ms, transform 180ms var(--ease) 60ms;
+}
+
+.warn{
+  display:flex;gap:.6rem;background:var(--warn-bg);color:var(--warn-fg);
+  border:1px solid var(--warn-line);border-radius:12px;padding:.75rem .85rem;
+  margin:0 1rem .85rem;font-size:1rem;font-weight:600;line-height:1.5;
+}
+.warn .warn-ico{flex:none}
+.card.settled .warn-chip{display:none}
+
+.card-body{padding:0 1rem 1rem}
+.row{margin-top:.7rem}
+.row:first-child{margin-top:0}
+.row-label{font-size:.78rem;color:var(--dim2);letter-spacing:.1em;font-weight:700}
+.maplink{
+  display:flex;align-items:center;gap:.6rem;margin-top:.25rem;
+  background:var(--card2);border:1px solid var(--line);border-radius:12px;
+  padding:.72rem .8rem;color:var(--fg);text-decoration:none;font-size:1rem;font-weight:600;
+}
+.maplink .arrow{margin-left:auto;color:var(--accent);font-size:.85rem;font-weight:700}
+.code-box{
+  margin-top:.25rem;background:#0d1420;border:1px dashed var(--accent);border-radius:12px;
+  padding:.6rem .8rem;font-size:1.5rem;font-weight:800;letter-spacing:.18em;
+  color:var(--accent);font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;
+  word-break:break-all;text-align:center;
+}
+.notes{white-space:pre-wrap;color:var(--dim);font-size:.98rem;margin-top:.25rem}
+.files{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.35rem}
+.file-btn{
+  display:inline-flex;align-items:center;gap:.45rem;background:var(--card2);
+  border:1px solid var(--line);border-radius:10px;padding:.55rem .8rem;
+  color:var(--fg);text-decoration:none;font-size:.95rem;font-weight:600;
+}
+.file-btn .x{color:#ff7b7b;font-weight:800;padding-left:.2rem}
+
+.admin-row{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.9rem;
+  border-top:1px dashed var(--line);padding-top:.8rem}
+.mini{
+  background:var(--card2);border:1px solid var(--line);border-radius:10px;
+  padding:.45rem .8rem;font-size:.9rem;font-weight:600;color:var(--dim);
+}
+.mini.danger{color:#ff8a8a;border-color:#5a2a2a}
+.mini:disabled{opacity:.35}
+
+.add-here{
+  display:block;width:100%;margin:.8rem 0;background:transparent;color:var(--accent);
+  border:1px dashed var(--line);border-radius:14px;padding:.9rem;font-weight:700;
+  /* mandatory 吸附下，不是吸附點的東西會被推到頁首後面 → 讓它自己也是一個停靠點 */
+  scroll-snap-align:start;scroll-snap-stop:normal;
+}
+.trip-end{color:var(--dim2);text-align:center;padding:2rem 1rem;font-size:.95rem}
+
+/* ------------------------------------------------------------------- rail */
+/* position:fixed → 完全不進文件流，吸附幾何一點都不受影響 */
+.rail{
+  position:fixed; right:0; z-index:35;
+  top:calc(3.2rem + env(safe-area-inset-top));
+  bottom:calc(.6rem + env(safe-area-inset-bottom));
+  width:2.3rem; display:flex; flex-direction:column;
+  background:linear-gradient(90deg,transparent,rgba(18,24,38,.92) 35%);
+  border-left:1px solid var(--line);
+  padding:.25rem 0;
+}
+.rail-row{
+  flex:1; min-height:1.4rem; display:grid; place-items:center;
+  background:none; border:0; padding:0; color:var(--dim2);
+  font-size:.78rem; font-weight:700; font-variant-numeric:tabular-nums;
+  position:relative; transition:color .18s var(--ease), background-color .18s var(--ease);
+}
+.rail-row.newmonth{border-top:1px solid var(--line)}
+/* 已經過完的日子 → 這就是「整趟走到哪」的進度 */
+.rail-row.elapsed{background:rgba(77,163,255,.14); color:var(--dim)}
+/* 今天 */
+.rail-row.nowday{color:var(--accent)}
+.rail-row.nowday::after{
+  content:""; position:absolute; right:.18rem; top:50%; transform:translateY(-50%);
+  width:.32rem; height:.32rem; border-radius:50%; background:var(--accent);
+  box-shadow:0 0 0 2px rgba(77,163,255,.25);
+}
+/* 正在看的那一天 */
+.rail-row.at{
+  color:var(--fg); background:rgba(255,255,255,.1);
+  box-shadow:inset 3px 0 0 var(--accent);
+}
+
+/* -------------------------------------------------------------------- FAB */
+.now-fab{
+  position:fixed;left:50%;z-index:40;
+  bottom:calc(1.2rem + env(safe-area-inset-bottom));
+  background:var(--accent);color:#04121f;border:0;border-radius:999px;
+  padding:.85rem 1.6rem;font-size:1.05rem;font-weight:800;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  transform:translate(-50%,0);
+  transition:transform .28s var(--ease), opacity .2s var(--ease);
+}
+/* 用滑出畫面代替瞬間消失 */
+.now-fab[hidden]{
+  display:block!important;opacity:0;pointer-events:none;
+  transform:translate(-50%,180%);
+}
+
+/* ------------------------------------------------------------------ modal */
+.modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.65);
+  display:flex;align-items:flex-end;justify-content:center;overscroll-behavior:contain;
+  animation:fade-in .2s var(--ease)}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+.modal-box{
+  width:100%;max-width:640px;max-height:88vh;max-height:88dvh;overflow:auto;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;background:var(--bg2);
+  border:1px solid var(--line);border-radius:20px 20px 0 0;
+  padding-bottom:calc(1rem + env(safe-area-inset-bottom));
+  animation:sheet-up .28s var(--ease);
+}
+@keyframes sheet-up{from{transform:translateY(14%)}to{transform:none}}
+.modal-head{
+  position:sticky;top:0;background:var(--bg2);display:flex;align-items:center;
+  justify-content:space-between;padding:1rem 1.1rem;border-bottom:1px solid var(--line);
+  font-weight:700;font-size:1.1rem;
+}
+.icon-btn{background:none;border:0;font-size:1.3rem;color:var(--dim);padding:.2rem .5rem}
+.modal-body{padding:1rem 1.1rem}
+label.f{display:block;margin-bottom:.85rem}
+label.f > span{display:block;font-size:.85rem;color:var(--dim);margin-bottom:.3rem;font-weight:600}
+input,select,textarea{
+  width:100%;background:#0d1420;color:var(--fg);border:1px solid var(--line);
+  border-radius:12px;padding:.7rem .8rem;font:inherit;font-size:1rem;
+}
+textarea{min-height:5rem;resize:vertical}
+.f-two{display:flex;gap:.7rem}
+.f-two > *{flex:1;min-width:0}
+.btn{
+  width:100%;background:var(--accent);color:#04121f;border:0;border-radius:14px;
+  padding:.9rem;font-size:1.05rem;font-weight:800;margin-top:.4rem;
+}
+.btn.ghost{background:var(--card2);color:var(--fg);border:1px solid var(--line)}
+.pin-input{font-size:2rem;text-align:center;letter-spacing:.6rem;font-weight:800}
+.err{color:#ff8a8a;font-size:.95rem;min-height:1.4em;margin:.3rem 0}
+.hint{color:var(--dim2);font-size:.85rem;margin:.2rem 0 .8rem}
+
+/* ------------------------------------------------------------------ toast */
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:6rem;z-index:60;
+  background:#e8eef8;color:#0b0f16;border-radius:999px;padding:.7rem 1.2rem;
+  font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.5);max-width:88vw;text-align:center;
+  animation:toast-in .24s var(--ease);
+}
+@keyframes toast-in{from{transform:translate(-50%,10px);opacity:0}to{transform:translateX(-50%);opacity:1}}
+
+@media (min-width:700px){ :root{font-size:19px} }
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  html{scroll-behavior:auto}
+}

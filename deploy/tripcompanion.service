@@ -1,0 +1,19 @@
+[Unit]
+Description=tripcompanion — phone-first trip timeline
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/tripcompanion
+Environment=TRIPCOMPANION_PIN=CHANGEME
+# 頁首顯示的旅程名稱與旅程時區（都不寫死在原始碼裡）
+Environment=TRIPCOMPANION_TITLE=旅程夥伴
+Environment=TRIPCOMPANION_TZ=Europe/Madrid
+ExecStart=/root/tripcompanion/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8101 --proxy-headers --forwarded-allow-ips 127.0.0.1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

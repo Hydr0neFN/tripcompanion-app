@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f16">
+<meta name="color-scheme" content="dark">
+<title>{{ trip_title }}</title>
+<link rel="stylesheet" href="/static/app.css?v={{ static_v }}">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧳</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-main">
+    <div class="trip-title" id="dayNow">{{ trip_title }}</div>
+    <div class="trip-clock" id="clock">—</div>
+  </div>
+  <button class="edit-toggle" id="editToggle" type="button">編輯</button>
+</header>
+
+<main id="timeline" class="timeline" aria-live="polite">
+  <div class="loading">載入中…</div>
+</main>
+
+<nav class="rail" id="rail" aria-label="跳到某一天"></nav>
+
+<button class="now-fab" id="nowFab" type="button" hidden>回到現在</button>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <div class="modal-head"><span id="modalTitle">編輯</span>
+      <button class="icon-btn" id="modalClose" type="button" aria-label="關閉">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="/static/app.js?v={{ static_v }}"></script>
+</body>
+</html>
