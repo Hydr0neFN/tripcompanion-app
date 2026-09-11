@@ -690,6 +690,7 @@
       state.events = d.events;
       state.rev = d.rev;
       state.editing = d.editing;
+      state.pinLen = d.pin_len || 0;
       state.nowTs = d.now_ts;
       state.fetchedAt = Date.now();
       state.nowLabelBase = d.now_label;
@@ -855,7 +856,108 @@
     return box;
   }
 
+  /* iOS 解鎖畫面式的 PIN：位數固定、按滿自動送出、錯了整排點點抖一下再清空。
+     伺服器只給位數（pin_len）；PIN 不是純數字時給 0，退回下面的一般輸入框。 */
+  var KEY_LETTERS = ["", "", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"];
+
   function openPin() {
+    if (!state.pinLen) { openPinForm(); return; }
+    var len = state.pinLen, digits = "", busy = false;
+    var ov = el("div", "passcode");
+    ov.setAttribute("role", "dialog");
+    ov.setAttribute("aria-modal", "true");
+    ov.setAttribute("aria-label", "輸入 PIN 進入編輯模式");
+
+    var head = el("div", "pc-head");
+    head.appendChild(el("div", "pc-title", "輸入 PIN"));
+    var sub = el("div", "pc-sub", "解鎖後可新增、修改行程");
+    sub.setAttribute("aria-live", "polite");
+    head.appendChild(sub);
+    var dots = el("div", "pc-dots");
+    for (var i = 0; i < len; i++) dots.appendChild(el("span", "pc-dot"));
+    head.appendChild(dots);
+    ov.appendChild(head);
+
+    var pad = el("div", "pc-pad");
+    function key(n) {
+      var b = el("button", "pc-key");
+      b.type = "button";
+      b.setAttribute("aria-label", String(n));
+      b.appendChild(el("span", "pc-num", String(n)));
+      b.appendChild(el("span", "pc-abc", KEY_LETTERS[n]));
+      // 按下就算（iOS 也是），不等手指放開；click 只接鍵盤觸發的（detail === 0）
+      b.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        b.classList.add("down");
+        press(String(n));
+      });
+      ["pointerup", "pointerleave", "pointercancel"].forEach(function (t) {
+        b.addEventListener(t, function () { b.classList.remove("down"); });
+      });
+      b.addEventListener("click", function (e) { if (e.detail === 0) press(String(n)); });
+      return b;
+    }
+    for (var n = 1; n <= 9; n++) pad.appendChild(key(n));
+    pad.appendChild(el("span"));
+    pad.appendChild(key(0));
+    var act = el("button", "pc-act");
+    act.type = "button";
+    act.addEventListener("click", function () { if (digits) back(); else close(); });
+    pad.appendChild(act);
+    ov.appendChild(pad);
+
+    function paint() {
+      for (var k = 0; k < len; k++) dots.children[k].classList.toggle("on", k < digits.length);
+      act.textContent = digits ? "刪除" : "取消";
+    }
+    function press(d) {
+      if (busy || digits.length >= len) return;
+      digits += d;
+      paint();
+      // 最後一顆點先亮一下再送，不然看起來像沒按到
+      if (digits.length === len) { busy = true; setTimeout(submit, 120); }
+    }
+    function back() {
+      if (busy) return;
+      digits = digits.slice(0, -1);
+      paint();
+    }
+    function submit() {
+      api("/api/auth", { json: { pin: digits } })
+        .then(function () {
+          ov.classList.add("ok");
+          setTimeout(function () { close(); toast("已進入編輯模式"); refresh(true); }, 220);
+        })
+        .catch(function (x) {
+          sub.textContent = x.message;
+          sub.classList.add("bad");
+          if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+          dots.classList.remove("shake");
+          void dots.offsetWidth;          // 重播動畫
+          dots.classList.add("shake");
+          setTimeout(function () { digits = ""; paint(); busy = false; }, 420);
+        });
+    }
+    function onKey(e) {
+      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); press(e.key); }
+      else if (e.key === "Backspace") { e.preventDefault(); back(); }
+      else if (e.key === "Escape") close();
+    }
+    function close() {
+      document.removeEventListener("keydown", onKey);
+      ov.remove();
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+    }
+
+    paint();
+    document.addEventListener("keydown", onKey);
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.appendChild(ov);
+  }
+
+  function openPinForm() {
     var body = openModal("編輯模式");
     var form = el("form");
     form.appendChild(el("div", "hint", "輸入共用 PIN 才能新增或修改行程。看行程不需要登入。"));

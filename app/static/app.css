@@ -270,6 +270,50 @@ textarea{min-height:5rem;resize:vertical}
 .err{color:#ff8a8a;font-size:.95rem;min-height:1.4em;margin:.3rem 0}
 .hint{color:var(--dim2);font-size:.85rem;margin:.2rem 0 .8rem}
 
+/* ------------------------------------------------------------------ passcode（iOS 解鎖畫面式） */
+.passcode{
+  position:fixed;inset:0;z-index:55;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:2.6rem;color:#fff;
+  padding:env(safe-area-inset-top) 16px calc(1.5rem + env(safe-area-inset-bottom));
+  background:rgba(8,12,20,.92);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang TC","Noto Sans TC",system-ui,sans-serif;
+  -webkit-user-select:none;user-select:none;touch-action:manipulation;
+  animation:fade-in .22s var(--ease);
+}
+@supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .passcode{background:rgba(8,12,20,.5);
+    -webkit-backdrop-filter:blur(28px) saturate(1.5);backdrop-filter:blur(28px) saturate(1.5)}
+}
+.passcode.ok{opacity:0;transition:opacity .22s var(--ease)}
+.pc-head{display:flex;flex-direction:column;align-items:center;text-align:center}
+.pc-title{font-size:1.25rem;font-weight:500;letter-spacing:.01em}
+.pc-sub{font-size:.85rem;color:rgba(255,255,255,.62);margin-top:.35rem;min-height:1.25em}
+.pc-sub.bad{color:#ffb0b0}
+.pc-dots{display:flex;gap:1.35rem;margin-top:1.5rem}
+.pc-dot{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(255,255,255,.9);
+  transition:background .12s}
+.pc-dot.on{background:#fff}
+.pc-dots.shake{animation:pc-shake .42s cubic-bezier(.36,.07,.19,.97)}
+@keyframes pc-shake{
+  0%,100%{transform:none}
+  15%{transform:translateX(-18px)} 30%{transform:translateX(15px)} 45%{transform:translateX(-11px)}
+  60%{transform:translateX(7px)}   75%{transform:translateX(-4px)} 90%{transform:translateX(2px)}
+}
+.pc-pad{display:grid;grid-template-columns:repeat(3,min(80px,22vw));gap:min(16px,4vw) min(26px,6vw)}
+.pc-key{
+  width:100%;aspect-ratio:1;border-radius:50%;border:0;padding:0;
+  background:rgba(255,255,255,.14);color:#fff;font:inherit;line-height:1;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  transition:background .35s ease-out;-webkit-tap-highlight-color:transparent;
+}
+/* 按下立刻亮、放開才慢慢退 —— 跟 iOS 一樣 */
+.pc-key.down{background:rgba(255,255,255,.42);transition:none}
+.pc-num{font-size:2.15rem;font-weight:300}
+.pc-abc{font-size:.58rem;font-weight:600;letter-spacing:.16em;margin-top:.18rem;min-height:.75em}
+.pc-act{background:none;border:0;color:#fff;font:inherit;font-size:1.05rem;padding:.6rem;
+  place-self:center;-webkit-tap-highlight-color:transparent}
+.pc-key:focus-visible,.pc-act:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
 /* ------------------------------------------------------------------ toast */
 .toast{
   position:fixed;left:50%;transform:translateX(-50%);bottom:6rem;z-index:60;

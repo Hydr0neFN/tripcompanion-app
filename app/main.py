@@ -276,6 +276,9 @@ def api_state(request: Request):
         "now_day": day_label(now.date()),
         "rev": rev,
         "editing": is_editor(request),
+        # Digit-only PINs get the phone-style keypad sized to this; anything else falls back
+        # to a plain text field. Length only — never the value.
+        "pin_len": len(EDIT_PIN) if EDIT_PIN.isdigit() and 4 <= len(EDIT_PIN) <= 8 else 0,
         "events": events,
     })
 
