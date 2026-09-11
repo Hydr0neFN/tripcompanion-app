@@ -2,6 +2,7 @@
 """tripcompanion — a phone-first trip timeline (FastAPI + SQLite, no build step)."""
 import datetime
 import hashlib
+import hmac
 import os
 import pathlib
 import re
@@ -33,9 +34,13 @@ TRIP_TZ = ZoneInfo(TRIP_TZ_NAME)
 # 顯示在頁首的旅程名稱。刻意不寫死 —— 真實的旅程名屬於部署，不屬於原始碼。
 TRIP_TITLE = os.environ.get("TRIPCOMPANION_TITLE", "旅程夥伴")
 
+DEFAULT_TITLE = "旅程夥伴"
 EDIT_PIN = os.environ.get("TRIPCOMPANION_PIN", "")
-SESSION_HOURS = 12
-COOKIE = "tc_edit"
+# Digit-only PINs get the phone-style keypad sized to this; anything else falls back to a plain
+# text field. Length only — never the value.
+PIN_LEN = len(EDIT_PIN) if EDIT_PIN.isdigit() and 4 <= len(EDIT_PIN) <= 8 else 0
+SESSION_DAYS = 30
+COOKIE = "tc_session"
 MAX_UPLOAD = 10 * 1024 * 1024
 ALLOWED_EXT = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".png": "image/png"}
@@ -57,8 +62,19 @@ def _static_version() -> str:
 templates.env.globals["static_v"] = _static_version()
 templates.env.globals["trip_title"] = TRIP_TITLE
 
-# token -> expiry epoch.  Single-process uvicorn; a restart simply logs editors out.
-_SESSIONS: dict[str, float] = {}
+_SESSION_KEY = b""               # set at startup, see _load_session_key()
+
+
+def _load_session_key() -> bytes:
+    """Random per-install secret (data/session.key) mixed with the PIN: sessions survive a
+    restart or redeploy, and changing the PIN signs every device out."""
+    path = db.DATA_DIR / "session.key"
+    if not path.exists():
+        path.write_bytes(secrets.token_bytes(32))
+        path.chmod(0o600)
+    return hashlib.sha256(path.read_bytes() + EDIT_PIN.encode()).digest()
+
+
 _PIN_FAILS: dict[str, list[float]] = {}
 _GLOBAL_FAILS: list[float] = []
 MAX_FAILS_PER_IP = 10
@@ -82,6 +98,8 @@ def startup() -> None:
             "set a real PIN in the systemd unit (see deploy/tripcompanion.service) or your shell."
         )
     db.init()
+    global _SESSION_KEY
+    _SESSION_KEY = _load_session_key()
     con = db.connect()
     try:
         if con.execute("SELECT COUNT(*) c FROM events").fetchone()["c"] == 0:
@@ -188,21 +206,21 @@ def load_events(con) -> list[dict]:
 
 # ------------------------------------------------------------------------ auth
 
-def is_editor(request: Request) -> bool:
-    tok = request.cookies.get(COOKIE)
-    if not tok:
+def _sign(exp: str) -> str:
+    return hmac.new(_SESSION_KEY, exp.encode(), hashlib.sha256).hexdigest()
+
+
+def is_authed(request: Request) -> bool:
+    """Cookie = '<expiry epoch>.<hmac>'. Stateless, so sessions survive a restart or redeploy —
+    the PIN now gates viewing too, and a restart must not lock the whole family out mid-trip."""
+    exp, _, sig = request.cookies.get(COOKIE, "").partition(".")
+    if not exp.isdigit() or int(exp) < time.time():
         return False
-    exp = _SESSIONS.get(tok)
-    if not exp:
-        return False
-    if exp < time.time():
-        _SESSIONS.pop(tok, None)
-        return False
-    return True
+    return hmac.compare_digest(sig, _sign(exp))
 
 
 def need_editor(request: Request):
-    return None if is_editor(request) else jresp({"error": "需要編輯權限"}, 403)
+    return None if is_authed(request) else jresp({"error": "需要 PIN"}, 401)
 
 
 def pin_rate_limited(ip: str) -> bool:
@@ -226,7 +244,7 @@ def record_pin_fail(ip: str) -> None:
 
 @app.get("/api/auth")
 def auth_state(request: Request):
-    return jresp({"editing": is_editor(request)})
+    return jresp({"authed": is_authed(request), "pin_len": PIN_LEN})
 
 
 @app.post("/api/auth")
@@ -237,20 +255,18 @@ def auth_login(request: Request, payload: dict = Body(...)):
     if not secrets.compare_digest(str(payload.get("pin", "")), EDIT_PIN):
         record_pin_fail(ip)
         return jresp({"error": "PIN 碼不對"}, 401)
-    tok = secrets.token_urlsafe(32)
-    _SESSIONS[tok] = time.time() + SESSION_HOURS * 3600
-    for dead in [k for k, v in _SESSIONS.items() if v < time.time()]:
-        _SESSIONS.pop(dead, None)
-    resp = jresp({"editing": True})
-    resp.set_cookie(COOKIE, tok, max_age=SESSION_HOURS * 3600, httponly=True,
+    exp = str(int(time.time()) + SESSION_DAYS * 86400)
+    resp = jresp({"authed": True})
+    resp.set_cookie(COOKIE, f"{exp}.{_sign(exp)}", max_age=SESSION_DAYS * 86400, httponly=True,
                     samesite="lax", path="/", secure=request.url.scheme == "https")
     return resp
 
 
 @app.post("/api/auth/logout")
 def auth_logout(request: Request):
-    _SESSIONS.pop(request.cookies.get(COOKIE, ""), None)
-    resp = jresp({"editing": False})
+    """Clears this device's cookie. Stateless tokens cannot be revoked one by one — changing the
+    PIN is what signs every device out."""
+    resp = jresp({"authed": False})
     resp.delete_cookie(COOKIE, path="/")
     return resp
 
@@ -259,6 +275,8 @@ def auth_logout(request: Request):
 
 @app.get("/api/state")
 def api_state(request: Request):
+    if not is_authed(request):
+        return jresp({"error": "需要 PIN", "pin_len": PIN_LEN}, 401)
     now = now_madrid(request)
     con = db.connect()
     try:
@@ -275,10 +293,7 @@ def api_state(request: Request):
         "now_label": now.strftime("%m/%d %H:%M"),
         "now_day": day_label(now.date()),
         "rev": rev,
-        "editing": is_editor(request),
-        # Digit-only PINs get the phone-style keypad sized to this; anything else falls back
-        # to a plain text field. Length only — never the value.
-        "pin_len": len(EDIT_PIN) if EDIT_PIN.isdigit() and 4 <= len(EDIT_PIN) <= 8 else 0,
+        "title": TRIP_TITLE,
         "events": events,
     })
 
@@ -502,6 +517,9 @@ def healthz():
 
 @app.get("/")
 def index(request: Request):
-    resp = templates.TemplateResponse(request, "index.html", {"request": request})
+    # The real trip name is itself a disclosure; a locked device gets the generic one.
+    title = TRIP_TITLE if is_authed(request) else DEFAULT_TITLE
+    resp = templates.TemplateResponse(request, "index.html",
+                                      {"request": request, "trip_title": title})
     resp.headers["Cache-Control"] = "no-store"
     return resp

@@ -27,7 +27,8 @@ FastAPI + SQLite + vanilla JS. No build step, no framework, no bundler — clone
 * **Date rail** down the right edge: one cell per day, tinted cells showing how much of the trip has
   elapsed *by the clock*, a dot on today, an accent bar on the day being viewed. Tap a cell to jump to
   that day's first event.
-* **PIN-gated editing.** Viewing needs no login; editing does. Add, edit, delete, reorder, upload
+* **One shared PIN, phone-style.** The site opens on a lock-screen keypad; one PIN unlocks viewing and
+  editing on that device for 30 days. Editing is then a local toggle — add, edit, delete, reorder, upload
   tickets. Other devices pick up changes within 30 s, or immediately when brought back to the foreground.
 
 ## The scroll interaction
@@ -127,7 +128,7 @@ Environment variables only — nothing about a specific trip is hardcoded.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `TRIPCOMPANION_PIN` | **none — the app refuses to start without it, and rejects the template value `CHANGEME`** | Shared edit PIN |
+| `TRIPCOMPANION_PIN` | **none — the app refuses to start without it, and rejects the template value `CHANGEME`** | Shared PIN — unlocks viewing and editing. Digits-only (4–8) gets the keypad; anything else a text field. Changing it signs every device out. |
 | `TRIPCOMPANION_TITLE` | `旅程夥伴` | Name shown in the header and browser tab |
 | `TRIPCOMPANION_TZ` | `Europe/Madrid` | The trip's timezone; the whole timeline is pinned to it. Any IANA zone works — the editor's zone list is built from this plus whatever zones the data already uses, and the header clock is labelled from it. |
 
@@ -185,12 +186,16 @@ touches itinerary data or uploaded tickets.
 The app does not touch tunnel configuration. With Cloudflare Tunnel, add a public hostname pointing at
 `127.0.0.1:8101`.
 
-> **Viewing requires no login, and that includes ticket attachments.** Filenames are unguessable, but the
-> page links to them, so anyone with the URL can open them. Put an access policy in front of the hostname
-> before uploading passport scans or visas.
+> **The itinerary API needs the PIN; ticket files are capability URLs.** `/api/state` answers 401 until
+> the device is unlocked, and the page title stays generic until then. `/files/<random>` is *not*
+> cookie-gated — iOS home-screen apps can open links in a browser context that does not share their
+> cookies — so a file URL, once known, opens for anyone holding it. Put an access policy in front of the
+> hostname before uploading passport scans or visas.
 
-The shared PIN is short and numeric by design — it stops an accidental edit, it is not meant to stand
-alone on the open internet. Treat the access policy as the real boundary. Rate limiting uses a 10-minute
+The session cookie is `<expiry>.<HMAC>`, keyed by a random `data/session.key` mixed with the PIN: it
+survives restarts and redeploys, and changing the PIN invalidates every device at once. The shared PIN
+is short and numeric by design; it is not meant to stand alone on the open internet. Treat the access
+policy as the real boundary. Rate limiting uses a 10-minute
 sliding window: 10 failures per IP, with a much higher global backstop of 400, deliberately set so one
 attacker cannot lock every editor out by burning the shared counter.
 

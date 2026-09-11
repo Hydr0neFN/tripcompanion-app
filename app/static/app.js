@@ -66,7 +66,12 @@
     }
     return fetch(url, opts).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (d) {
-        if (!r.ok) throw new Error(d.error || ("HTTP " + r.status));
+        if (!r.ok) {
+          var er = new Error(d.error || ("HTTP " + r.status));
+          er.status = r.status;
+          er.data = d;
+          throw er;
+        }
         return d;
       });
     });
@@ -689,8 +694,7 @@
     return api("/api/state").then(function (d) {
       state.events = d.events;
       state.rev = d.rev;
-      state.editing = d.editing;
-      state.pinLen = d.pin_len || 0;
+      if (d.title) document.title = d.title;
       state.nowTs = d.now_ts;
       state.fetchedAt = Date.now();
       state.nowLabelBase = d.now_label;
@@ -705,6 +709,12 @@
       render();
       tickClock();
     }).catch(function (err) {
+      // 沒解鎖（或 30 天過期、PIN 換了）：整個網站鎖著，直到輸入 PIN
+      if (err.status === 401) {
+        state.pinLen = (err.data && err.data.pin_len) || 0;
+        openPin();
+        return;
+      }
       console.warn("refresh failed", err);
     });
   }
@@ -860,7 +870,10 @@
      伺服器只給位數（pin_len）；PIN 不是純數字時給 0，退回下面的一般輸入框。 */
   var KEY_LETTERS = ["", "", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"];
 
+  /* 網站鎖著時才會叫到這裡（refresh 拿到 401）。輪詢每 30 秒還會再叫一次，已經開著就別疊第二層。
+     沒有「取消」：關掉只剩一片空白，沒意義。 */
   function openPin() {
+    if (document.querySelector(".passcode") || !$modal.hidden) return;
     if (!state.pinLen) { openPinForm(); return; }
     var len = state.pinLen, digits = "", busy = false;
     var ov = el("div", "passcode");
@@ -870,7 +883,7 @@
 
     var head = el("div", "pc-head");
     head.appendChild(el("div", "pc-title", "輸入 PIN"));
-    var sub = el("div", "pc-sub", "解鎖後可新增、修改行程");
+    var sub = el("div", "pc-sub", "解鎖後即可查看行程");
     sub.setAttribute("aria-live", "polite");
     head.appendChild(sub);
     var dots = el("div", "pc-dots");
@@ -902,13 +915,14 @@
     pad.appendChild(key(0));
     var act = el("button", "pc-act");
     act.type = "button";
-    act.addEventListener("click", function () { if (digits) back(); else close(); });
+    act.addEventListener("click", back);
     pad.appendChild(act);
     ov.appendChild(pad);
 
     function paint() {
       for (var k = 0; k < len; k++) dots.children[k].classList.toggle("on", k < digits.length);
-      act.textContent = digits ? "刪除" : "取消";
+      act.textContent = "刪除";
+      act.style.visibility = digits ? "" : "hidden";
     }
     function press(d) {
       if (busy || digits.length >= len) return;
@@ -926,7 +940,7 @@
       api("/api/auth", { json: { pin: digits } })
         .then(function () {
           ov.classList.add("ok");
-          setTimeout(function () { close(); toast("已進入編輯模式"); refresh(true); }, 220);
+          setTimeout(function () { close(); toast("已解鎖"); refresh(true); }, 220);
         })
         .catch(function (x) {
           sub.textContent = x.message;
@@ -941,7 +955,6 @@
     function onKey(e) {
       if (/^[0-9]$/.test(e.key)) { e.preventDefault(); press(e.key); }
       else if (e.key === "Backspace") { e.preventDefault(); back(); }
-      else if (e.key === "Escape") close();
     }
     function close() {
       document.removeEventListener("keydown", onKey);
@@ -960,7 +973,7 @@
   function openPinForm() {
     var body = openModal("編輯模式");
     var form = el("form");
-    form.appendChild(el("div", "hint", "輸入共用 PIN 才能新增或修改行程。看行程不需要登入。"));
+    form.appendChild(el("div", "hint", "輸入共用 PIN 解鎖；解鎖後可以查看與修改行程。"));
     var l = el("label", "f");
     l.appendChild(el("span", null, "PIN"));
     var input = el("input", "pin-input");
@@ -979,17 +992,20 @@
       e.preventDefault();
       go.disabled = true;
       api("/api/auth", { json: { pin: input.value } })
-        .then(function () { closeModal(); toast("已進入編輯模式"); refresh(true); })
+        .then(function () { closeModal(); toast("已解鎖"); refresh(true); })
         .catch(function (x) { err.textContent = x.message; go.disabled = false; input.value = ""; });
     });
     body.appendChild(form);
     setTimeout(function () { input.focus(); }, 50);
   }
 
+  // 解鎖了就能編輯；這顆只切換本機的編輯介面，免得看行程時誤觸刪除
   $editToggle.addEventListener("click", function () {
-    if (!state.editing) { openPin(); return; }
-    api("/api/auth/logout", { method: "POST" })
-      .then(function () { toast("已離開編輯模式"); refresh(true); });
+    state.editing = !state.editing;
+    $editToggle.textContent = state.editing ? "結束編輯" : "編輯";
+    $editToggle.classList.toggle("on", state.editing);
+    lastRenderKey = "";
+    render();
   });
 
   $fab.addEventListener("click", goToNow);
