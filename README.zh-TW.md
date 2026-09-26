@@ -104,13 +104,22 @@ ssh your-host 'cp /root/tripcompanion/deploy/tripcompanion.service /etc/systemd/
   && systemctl daemon-reload && systemctl enable --now tripcompanion'
 ```
 
-部署前請先編輯 unit 檔案 —— 該檔案預設包含 `TRIPCOMPANION_PIN=CHANGEME`，程式在啟動時會直接拒絕此範本值，因此在設定真實 PIN 碼之前服務將無法啟動。服務會綁定於 `127.0.0.1:8101` 並啟用 `--proxy-headers --forwarded-allow-ips 127.0.0.1`，因此僅能透過前端的反向代理（reverse proxy）存取。**請務必只執行單一 worker** —— session 與速率限制計數器皆保存在 process 記憶體中，若設定 `--workers 2` 將導致兩者狀態不同步。`data/` 目錄未包含在 tar 壓縮檔中，因此重新部署絕對不會覆蓋既有的行程資料與已上傳的票券附件。
+第一次啟動前（僅需一次）：建立服務專用使用者、調整權限，並把 PIN 碼放進只有 root 可讀的檔案 —— 不要寫在 unit 裡，unit 的 `Environment=` 任何本機使用者都能用 `systemctl show` 看到：
+
+```bash
+useradd --system --no-create-home --shell /usr/sbin/nologin tripcompanion
+cd /root/tripcompanion && mkdir -p data && chmod -R go+rX,go-w .
+chown -R tripcompanion:tripcompanion data && chmod 700 data
+printf 'TRIPCOMPANION_PIN=%s\n' 'your-pin' | install -m 600 /dev/stdin /etc/tripcompanion.env
+```
+
+PIN 碼未設定或仍為範本值 `CHANGEME` 時程式拒絕啟動。unit 以無特權的 `tripcompanion` 使用者執行、不帶任何 capability、作業系統唯讀，`/root` 與 `/home` 以空的 tmpfs 遮蔽：只有程式目錄被唯讀掛回，只有 `data/` 可寫入，因此即使程式遭入侵也讀不到同一台主機上其他服務的金鑰。重新部署後請再執行一次 `chmod -R go+rX,go-w .`，讓服務使用者能讀取新的程式碼。服務會綁定於 `127.0.0.1:8101` 並啟用 `--proxy-headers --forwarded-allow-ips 127.0.0.1`，因此僅能透過前端的反向代理（reverse proxy）存取。**請務必只執行單一 worker** —— session 與速率限制計數器皆保存在 process 記憶體中，若設定 `--workers 2` 將導致兩者狀態不同步。`data/` 目錄未包含在 tar 壓縮檔中，因此重新部署絕對不會覆蓋既有的行程資料與已上傳的票券附件。
 
 ### 對外公開服務
 
 本專案程式碼不會去修改任何通道（Tunnel）或防火牆設定。若搭配 Cloudflare Tunnel，只需新增一個指向 `127.0.0.1:8101` 的公開 hostname 即可。
 
-> **行程 API 需要 PIN 碼；票券檔案則為權限識別網址（capability URLs）。** 在裝置解鎖前，`/api/state` 會回應 401，且頁面標題在此之前保持為通用標題。`/files/<random>` **並未**綁定 cookie 驗證 —— iOS 主畫面應用程式（home-screen apps）可能會在未共享其 cookie 的瀏覽器環境中開啟連結 —— 因此檔案網址一旦被取得，任何持有該網址的人皆可開啟。在對外公開前，若要上傳護照掃描檔或簽證等文件，請務必在 hostname 前端配置存取控制政策（Access Policy）。
+> **所有內容都需要 PIN 碼，票券檔案也不例外。** 在裝置解鎖前，`/api/state` 會回應 401，且頁面標題在此之前保持為通用標題。`/files/<random>` 需要 PIN cookie，*或* `/api/state` 所給檔案連結上附帶的短效簽章（`?e=<expiry>&s=<hmac>`）：iOS 主畫面應用程式（home-screen apps）可能會在未共享其 cookie 的瀏覽器環境中開啟連結，只靠 cookie 會讓票券在那裡打不開。連結 1–2 天後失效，變更 PIN 碼也會立即失效，因此外洩或留在瀏覽紀錄中的網址無法再使用。若要上傳護照掃描檔或簽證等文件，仍請在 hostname 前端設定存取控制政策（Access Policy）。
 
 Session cookie 格式為 `<expiry>.<HMAC>`，以隨機產生的 `data/session.key` 結合 PIN 碼作為密鑰：服務重啟與重新部署後依然有效，且一旦變更 PIN 碼就會立即使所有裝置的 session 同步失效。共用 PIN 碼在設計上採用簡短的數字形式，並非設計用來單獨面對公開網路；請將存取控制政策視為真正的安全邊界。速率限制（Rate limiting）採用 10 分鐘滑動視窗：單一 IP 上限 10 次失敗，並設有較高（400 次）的全局總量防護門檻，刻意避免單一攻擊者耗盡共用計數器而導致所有編輯者被鎖定在外。
 

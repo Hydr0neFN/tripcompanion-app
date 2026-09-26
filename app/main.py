@@ -95,7 +95,7 @@ def startup() -> None:
     if not EDIT_PIN or EDIT_PIN == "CHANGEME":
         raise RuntimeError(
             "TRIPCOMPANION_PIN is unset or still the template value. Refusing to start — "
-            "set a real PIN in the systemd unit (see deploy/tripcompanion.service) or your shell."
+            "set a real PIN in the EnvironmentFile (see deploy/tripcompanion.service) or your shell."
         )
     db.init()
     global _SESSION_KEY
@@ -195,7 +195,7 @@ def load_events(con) -> list[dict]:
     for a in con.execute("SELECT * FROM attachments ORDER BY id").fetchall():
         atts.setdefault(a["event_id"], []).append({
             "id": a["id"], "name": a["orig_name"], "mime": a["mime"],
-            "url": "/files/" + a["stored_name"],
+            "url": file_url(a["stored_name"]),
             "size": a["size"], "is_image": a["mime"].startswith("image/"),
         })
     rows = con.execute("SELECT * FROM events").fetchall()
@@ -217,6 +217,28 @@ def is_authed(request: Request) -> bool:
     if not exp.isdigit() or int(exp) < time.time():
         return False
     return hmac.compare_digest(sig, _sign(exp))
+
+
+FILE_LINK_DAYS = 2
+
+
+def _file_sig(stored: str, exp: str) -> str:
+    return _sign(f"file:{stored}:{exp}")
+
+
+def file_url(stored: str) -> str:
+    """Ticket links carry their own short-lived signature: iOS home-screen apps open them in a
+    browser context without the app's cookie, so the cookie alone cannot gate them, yet a leaked
+    or history link must stop working. Expiry is bucketed by day so the URL (and the render key)
+    stays stable across the 30 s poll; valid 1-2 days, and a PIN change kills every link."""
+    exp = str((int(time.time()) // 86400 + FILE_LINK_DAYS) * 86400)
+    return f"/files/{stored}?e={exp}&s={_file_sig(stored, exp)}"
+
+
+def file_link_ok(stored: str, exp: str, sig: str) -> bool:
+    if not exp.isdigit() or int(exp) < time.time():
+        return False
+    return hmac.compare_digest(sig, _file_sig(stored, exp))
 
 
 def need_editor(request: Request):
@@ -454,7 +476,7 @@ async def upload_attachment(request: Request, event_id: int, file: UploadFile = 
             "VALUES(?,?,?,?,?)", (event_id, stored, orig, mime, len(blob)))
         db.bump_rev(con)
         con.commit()
-        return jresp({"id": cur.lastrowid, "name": orig, "url": "/files/" + stored})
+        return jresp({"id": cur.lastrowid, "name": orig, "url": file_url(stored)})
     finally:
         con.close()
 
@@ -487,8 +509,11 @@ def content_disposition(name: str) -> str:
 
 
 @app.get("/files/{stored}")
-def serve_attachment(stored: str):
-    """Opaque uuid filename — sequential ids would let anyone enumerate the tickets."""
+def serve_attachment(request: Request, stored: str, e: str = "", s: str = ""):
+    """Opaque uuid filename — sequential ids would let anyone enumerate the tickets. Needs the
+    PIN cookie or an unexpired signed link from /api/state (see file_url)."""
+    if not (is_authed(request) or file_link_ok(stored, e, s)):
+        return jresp({"error": "需要 PIN"}, 401)
     if not STORED_RE.match(stored):
         return jresp({"error": "找不到這個附件"}, 404)
     con = db.connect()

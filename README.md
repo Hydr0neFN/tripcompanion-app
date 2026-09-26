@@ -175,8 +175,22 @@ ssh your-host 'cp /root/tripcompanion/deploy/tripcompanion.service /etc/systemd/
   && systemctl daemon-reload && systemctl enable --now tripcompanion'
 ```
 
-Edit the unit first — it ships `TRIPCOMPANION_PIN=CHANGEME`, which the app rejects at startup, so the
-service will not come up until a real PIN is set. It binds `127.0.0.1:8101` with `--proxy-headers --forwarded-allow-ips 127.0.0.1`, so it is only
+Before the first start, once: create the service user, fix permissions, and put the PIN in a
+root-only file — not in the unit, whose `Environment=` lines any local user can read via
+`systemctl show`:
+
+```bash
+useradd --system --no-create-home --shell /usr/sbin/nologin tripcompanion
+cd /root/tripcompanion && mkdir -p data && chmod -R go+rX,go-w .
+chown -R tripcompanion:tripcompanion data && chmod 700 data
+printf 'TRIPCOMPANION_PIN=%s\n' 'your-pin' | install -m 600 /dev/stdin /etc/tripcompanion.env
+```
+
+The app rejects a missing PIN or the template value `CHANGEME` at startup. The unit runs as the
+unprivileged `tripcompanion` user with no capabilities, a read-only OS, and `/root` + `/home` hidden
+behind an empty tmpfs: only the app directory is mapped back (read-only) and only `data/` is
+writable, so an exploit in the app cannot read other services' secrets on a shared box. After a
+redeploy, re-run the `chmod -R go+rX,go-w .` line so the service user can read the new code. It binds `127.0.0.1:8101` with `--proxy-headers --forwarded-allow-ips 127.0.0.1`, so it is only
 reachable through whatever proxy sits in front. **Run a single worker** — sessions and rate-limit
 counters live in process memory, so `--workers 2` would desynchronise both. `data/` is not in the tarball, so redeploying never
 touches itinerary data or uploaded tickets.
@@ -186,11 +200,13 @@ touches itinerary data or uploaded tickets.
 The app does not touch tunnel configuration. With Cloudflare Tunnel, add a public hostname pointing at
 `127.0.0.1:8101`.
 
-> **The itinerary API needs the PIN; ticket files are capability URLs.** `/api/state` answers 401 until
-> the device is unlocked, and the page title stays generic until then. `/files/<random>` is *not*
-> cookie-gated — iOS home-screen apps can open links in a browser context that does not share their
-> cookies — so a file URL, once known, opens for anyone holding it. Put an access policy in front of the
-> hostname before uploading passport scans or visas.
+> **Everything needs the PIN, ticket files included.** `/api/state` answers 401 until the device is
+> unlocked, and the page title stays generic until then. `/files/<random>` opens with the PIN cookie
+> *or* the short-lived signature the file links in `/api/state` carry (`?e=<expiry>&s=<hmac>`): iOS
+> home-screen apps can open links in a browser context that does not share their cookies, so the
+> cookie alone would break tickets there. Links expire after 1–2 days and die when the PIN changes, so
+> a leaked or history URL stops working. Still put an access policy in front of the hostname before
+> uploading passport scans or visas.
 
 The session cookie is `<expiry>.<HMAC>`, keyed by a random `data/session.key` mixed with the PIN: it
 survives restarts and redeploys, and changing the PIN invalidates every device at once. The shared PIN
