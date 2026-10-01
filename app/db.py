@@ -35,7 +35,11 @@ CREATE TABLE IF NOT EXISTS attachments(
 CREATE INDEX IF NOT EXISTS idx_attach_event ON attachments(event_id);
 CREATE TABLE IF NOT EXISTS night_prep(
   id INTEGER PRIMARY KEY,
-  target_date TEXT NOT NULL,            -- 'YYYY-MM-DD': the evening this belongs to
+  -- target_date = the date of the EVENING this is for, i.e. the day whose events just ended.
+  -- It is NOT the date of the event being prepared for: the 03:00 shuttle on 3 Jan is prepared on
+  -- the evening of 2 Jan, so its items carry target_date 2027-01-02. Getting this wrong puts an
+  -- alarm 24 hours off.
+  target_date TEXT NOT NULL,            -- 'YYYY-MM-DD'
   title TEXT NOT NULL,
   alarm_time TEXT NOT NULL DEFAULT '',  -- 'HH:MM': the wake-up alarm to set tonight
   due_time TEXT NOT NULL DEFAULT '',    -- 'HH:MM': when this has to happen that evening
