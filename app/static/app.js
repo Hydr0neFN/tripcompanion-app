@@ -126,7 +126,59 @@
 
   /* 小提示：空一行分段，每段第一行是摘要（收合時就看得到），其餘點開才出現。
      禮儀、「這裡怎麼運作」放這裡；會壞事的（日期、關門時間）留在 warning，永遠攤開。 */
-  var hintOpen = {};
+  var hintOpen = {}, notesOpen = {};
+
+  /* 備註：以換行為一項。收合時露出開頭的完整項目 —— 3 行內放得下幾項就放幾項（至少 1 項），
+     永遠切在項目邊界，不寫摘要、不做漸層；剩下的只用數字說「還有 N 項」。
+     全部放得下（或只有 1 項）就完全不摺。實際放幾項要量版面，所以排版完才由 fitNotes() 決定。 */
+  var NOTES_LINES = 3;
+  function notesBlock(e) {
+    var items = String(e.notes || "").split("\n").map(function (t) { return t.trim(); })
+      .filter(Boolean);
+    var box = el("div", "notes-box");
+    if (items.length < 2) { box.appendChild(rich("div", "notes", items[0] || "")); return box; }
+    box.classList.add("notes-fold");
+    box.dataset.id = e.id;
+    items.forEach(function (t) { box.appendChild(rich("div", "notes note-item", t)); });
+    var more = el("button", "note-more");
+    more.type = "button";
+    more.hidden = true;
+    more.addEventListener("click", function () {
+      notesOpen[e.id] = !notesOpen[e.id];
+      applyNotes(box);
+    });
+    box.appendChild(more);
+    return box;
+  }
+  function applyNotes(box) {
+    var items = box.querySelectorAll(".note-item"), more = box.querySelector(".note-more");
+    var shown = +box.dataset.shown, open = !!notesOpen[box.dataset.id];
+    for (var i = 0; i < items.length; i++) items[i].hidden = !open && i >= shown;
+    more.hidden = shown >= items.length;
+    more.textContent = open ? "收起 ▴" : "還有 " + (items.length - shown) + " 項 ▾";
+  }
+  /* 先全部量完（一次 reflow）、再一起寫，免得每張卡各強迫排版一次。 */
+  function fitNotes() {
+    var boxes = Array.prototype.slice.call($timeline.querySelectorAll(".notes-fold"));
+    var plan = boxes.map(function (box) {
+      var items = box.querySelectorAll(".note-item");
+      for (var i = 0; i < items.length; i++) items[i].hidden = false;
+      // 數「行」而不是量像素：項目之間的間距不是一行文字
+      var lh = parseFloat(getComputedStyle(items[0]).lineHeight) || 24;
+      var lines = Math.max(1, Math.round(items[0].offsetHeight / lh)), shown = 1;
+      for (var k = 1; k < items.length; k++) {
+        lines += Math.max(1, Math.round(items[k].offsetHeight / lh));
+        if (lines <= NOTES_LINES) shown = k + 1;
+        else break;
+      }
+      return shown;
+    });
+    boxes.forEach(function (box, i) { box.dataset.shown = plan[i]; applyNotes(box); });
+  }
+  var fitTimer = null;
+  function refitSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(fitNotes, 150); }
+  window.addEventListener("resize", refitSoon);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(refitSoon);
   function hintRow(e) {
     var blocks = (e.hint || "").split(/\n\s*\n/).map(function (b) { return b.trim(); })
       .filter(Boolean);
@@ -278,7 +330,7 @@
     if (e.notes) {
       var rn = el("div", "row");
       rn.appendChild(el("div", "row-label", "備註"));
-      rn.appendChild(rich("div", "notes", e.notes));
+      rn.appendChild(notesBlock(e));
       body.appendChild(rn);
     }
     if (state.editing) body.appendChild(adminRow(e, neighbours));
@@ -379,6 +431,7 @@
     }
     $timeline.textContent = "";
     $timeline.appendChild(frag);
+    fitNotes();     // 在算捲動位置之前：它只會改到焦點卡自己的高度
 
     var nowId = events[f.idx] ? events[f.idx].id : null;
     if (pendingScrollToNow) { focusEventId = expandedEventId = nowId; }

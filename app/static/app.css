@@ -157,7 +157,15 @@ button{font:inherit;color:inherit;cursor:pointer}
   color:var(--accent);font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;
   word-break:break-all;text-align:center;
 }
-.notes{white-space:pre-wrap;color:var(--dim);font-size:.98rem;margin-top:.25rem}
+.notes{white-space:pre-wrap;color:var(--dim);font-size:.98rem;margin-top:.25rem;line-height:1.5}
+.notes-fold{position:relative}
+.notes-fold .note-item{margin-top:.35rem}
+.notes-fold .note-item:first-child{margin-top:.25rem}
+.note-item[hidden]{display:none}
+.note-more{display:block;width:100%;min-height:48px;margin-top:.15rem;padding:0 .2rem;text-align:left;
+  background:none;border:0;color:var(--accent);font:inherit;font-weight:700;
+  -webkit-tap-highlight-color:transparent}
+.note-more[hidden]{display:none}
 .files{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.35rem}
 .file-btn{
   display:inline-flex;align-items:center;gap:.45rem;background:var(--card2);
