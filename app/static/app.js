@@ -112,6 +112,18 @@
   }
 
   // ------------------------------------------------------------------ 渲染
+  /* 行程文字裡唯一允許的標記是 <b>…</b>（粗體）。拆成文字節點與 <b> 元素，不走 innerHTML，
+     所以資料裡就算混進別的標籤也只會原樣顯示，不會被當成 HTML 執行。 */
+  function rich(tag, cls, text) {
+    var n = el(tag, cls);
+    String(text || "").split(/(<b>[\s\S]*?<\/b>)/).forEach(function (part) {
+      var m = /^<b>([\s\S]*)<\/b>$/.exec(part);
+      if (m) n.appendChild(el("b", null, m[1]));
+      else if (part) n.appendChild(document.createTextNode(part));
+    });
+    return n;
+  }
+
   /* 小提示：空一行分段，每段第一行是摘要（收合時就看得到），其餘點開才出現。
      禮儀、「這裡怎麼運作」放這裡；會壞事的（日期、關門時間）留在 warning，永遠攤開。 */
   var hintOpen = {};
@@ -123,12 +135,12 @@
     r.appendChild(el("div", "row-label", "小提示"));
     blocks.forEach(function (b, i) {
       var lines = b.split("\n"), head = lines.shift(), rest = lines.join("\n").trim();
-      if (!rest) { r.appendChild(el("div", "hint hint-flat", "💡 " + head)); return; }
+      if (!rest) { r.appendChild(rich("div", "hint hint-flat", "💡 " + head)); return; }
       var key = e.id + ":" + i;
       var d = el("details", "hint");
       d.open = !!hintOpen[key];          // 每 30 秒重建時保留展開狀態
-      d.appendChild(el("summary", null, "💡 " + head));
-      d.appendChild(el("div", "hint-body", rest));
+      d.appendChild(rich("summary", null, "💡 " + head));
+      d.appendChild(rich("div", "hint-body", rest));
       d.addEventListener("toggle", function () { hintOpen[key] = d.open; });
       r.appendChild(d);
     });
@@ -138,7 +150,7 @@
   function eveRow(text) {
     var r = el("div", "row");
     r.appendChild(el("div", "row-label", "前一晚要準備"));
-    r.appendChild(el("div", "eve", "🌙 " + text));
+    r.appendChild(rich("div", "eve", "🌙 " + text));
     return r;
   }
 
@@ -153,7 +165,7 @@
     if (eves.length) {
       box.appendChild(el("div", "preview-sub", "今晚先準備"));
       eves.forEach(function (x) {
-        box.appendChild(el("div", "preview-item", hhmm(x) + "：" + x.eve));
+        box.appendChild(rich("div", "preview-item", hhmm(x) + "：" + x.eve));
       });
     }
     // 第一站自己的 warning 已經在卡片最上面，這裡只列其他行程的
@@ -161,7 +173,7 @@
     if (warns.length) {
       box.appendChild(el("div", "preview-sub", p.word + "其他要注意的"));
       warns.forEach(function (x) {
-        box.appendChild(el("div", "preview-item", "⚠ " + hhmm(x) + "：" + x.warning));
+        box.appendChild(rich("div", "preview-item", "⚠ " + hhmm(x) + "：" + x.warning));
       });
     }
     if (p.events.length > 1) {
@@ -219,7 +231,7 @@
     if (e.warning) {
       var w = el("div", "warn");
       w.appendChild(el("span", "warn-ico", "⚠"));
-      w.appendChild(el("span", null, e.warning));
+      w.appendChild(rich("span", null, e.warning));
       foldIn.appendChild(w);
     }
     if (neighbours.preview) foldIn.appendChild(previewBox(neighbours.preview));
@@ -266,7 +278,7 @@
     if (e.notes) {
       var rn = el("div", "row");
       rn.appendChild(el("div", "row-label", "備註"));
-      rn.appendChild(el("div", "notes", e.notes));
+      rn.appendChild(rich("div", "notes", e.notes));
       body.appendChild(rn);
     }
     if (state.editing) body.appendChild(adminRow(e, neighbours));
