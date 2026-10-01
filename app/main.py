@@ -39,7 +39,9 @@ EDIT_PIN = os.environ.get("TRIPCOMPANION_PIN", "")
 # Digit-only PINs get the phone-style keypad sized to this; anything else falls back to a plain
 # text field. Length only — never the value.
 PIN_LEN = len(EDIT_PIN) if EDIT_PIN.isdigit() and 4 <= len(EDIT_PIN) <= 8 else 0
-SESSION_DAYS = 30
+# The trip runs 12/20-1/4 and the app is installed weeks earlier, so a login must outlive the wait.
+# /api/state re-issues the cookie about once a day (sliding), so a phone in regular use never expires.
+SESSION_DAYS = 100
 COOKIE = "tc_session"
 MAX_UPLOAD = 10 * 1024 * 1024
 ALLOWED_EXT = {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -212,6 +214,19 @@ def _sign(exp: str) -> str:
     return hmac.new(_SESSION_KEY, exp.encode(), hashlib.sha256).hexdigest()
 
 
+def issue_session(request: Request, resp) -> None:
+    exp = str(int(time.time()) + SESSION_DAYS * 86400)
+    resp.set_cookie(COOKIE, f"{exp}.{_sign(exp)}", max_age=SESSION_DAYS * 86400, httponly=True,
+                    samesite="lax", path="/", secure=request.url.scheme == "https")
+
+
+def renew_session(request: Request, resp) -> None:
+    """Sliding expiry: called only for an already-authenticated request."""
+    exp = request.cookies.get(COOKIE, "").partition(".")[0]
+    if exp.isdigit() and int(exp) - time.time() < (SESSION_DAYS - 1) * 86400:
+        issue_session(request, resp)
+
+
 def is_authed(request: Request) -> bool:
     """Cookie = '<expiry epoch>.<hmac>'. Stateless, so sessions survive a restart or redeploy —
     the PIN now gates viewing too, and a restart must not lock the whole family out mid-trip."""
@@ -279,10 +294,8 @@ def auth_login(request: Request, payload: dict = Body(...)):
     if not secrets.compare_digest(str(payload.get("pin", "")), EDIT_PIN):
         record_pin_fail(ip)
         return jresp({"error": "PIN 碼不對"}, 401)
-    exp = str(int(time.time()) + SESSION_DAYS * 86400)
     resp = jresp({"authed": True})
-    resp.set_cookie(COOKIE, f"{exp}.{_sign(exp)}", max_age=SESSION_DAYS * 86400, httponly=True,
-                    samesite="lax", path="/", secure=request.url.scheme == "https")
+    issue_session(request, resp)
     return resp
 
 
@@ -310,7 +323,7 @@ def api_state(request: Request):
     finally:
         con.close()
     used = sorted({e["tz"] for e in events} | {TRIP_TZ_NAME})
-    return jresp({
+    resp = jresp({
         "trip_tz": TRIP_TZ_NAME,
         "clock_label": tz_display(TRIP_TZ_NAME) + "時間",
         "tz_choices": [{"tz": z, "label": tz_display(z)} for z in used],
@@ -322,6 +335,8 @@ def api_state(request: Request):
         "events": events,
         "night_prep": prep,
     })
+    renew_session(request, resp)
+    return resp
 
 
 # ---------------------------------------------------------------------- events
@@ -675,6 +690,21 @@ def serve_attachment(request: Request, stored: str, e: str = "", s: str = ""):
 
 
 # ------------------------------------------------------------------------ page
+
+@app.get("/manifest.webmanifest")
+def manifest():
+    """Public on purpose (a locked device must still be able to install the app) — so it carries
+    only the generic title, never the real trip name."""
+    return JSONResponse({
+        "name": DEFAULT_TITLE, "short_name": DEFAULT_TITLE, "lang": "zh-Hant",
+        "start_url": "/", "scope": "/", "display": "standalone",
+        "background_color": "#0b0f16", "theme_color": "#0b0f16",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        ],
+    }, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"})
+
 
 @app.get("/healthz")
 def healthz():
