@@ -287,11 +287,16 @@
     return b;
   }
 
+  /* 那一晚沒有任何 night_prep → 整塊不出現（連空狀態那一行也不要）：每晚都占一行、
+     卻不是每晚都有內容的東西，會教人學會略過它。唯一的例外是清晨出發的紅色提醒，
+     它只在真的清晨出發的那幾晚才會有，所以單獨留著。 */
   function nightBlock(ev, e) {
     var early = parseInt(e.start_at.slice(11, 13), 10) < 6;     // 天亮前出發
+    if (!ev.items.length && !early) return null;
     var box = el("section", "night" + (early ? " early" : ""));
     box.setAttribute("aria-label", "今晚準備");
     if (early) box.appendChild(el("div", "night-early", "⚠ " + ev.word + "清晨出發"));
+    if (!ev.items.length) return box;
     var hd = el("div", "night-head");
     hd.appendChild(el("span", null, "🌙 今晚睡前"));
     var back = el("button", "night-back", "↑ 回到今天");
@@ -306,7 +311,6 @@
       box.appendChild(prepRow(x, "night-alarm", morning + "鬧鐘 " + x.alarm_time, x.title));
     });
     rest.forEach(function (x) { box.appendChild(prepRow(x, "", x.title)); });
-    if (!ev.items.length) box.appendChild(el("div", "night-none", "今晚沒有要先準備的事。"));
     box.appendChild(el("div", "night-sep", ev.word + "第一站"));
     return box;
   }
@@ -349,7 +353,8 @@
     if (dayLabel) card.appendChild(el("div", "day-tag", dayLabel));
     if (neighbours.evening) {
       card.classList.add("evening");
-      card.appendChild(nightBlock(neighbours.evening, e));
+      var nb = nightBlock(neighbours.evening, e);
+      if (nb) card.appendChild(nb);
     }
 
     var head = el("button", "card-head");
@@ -360,7 +365,7 @@
     if (cls.indexOf("now") >= 0) {
       ht.appendChild(el("div", "now-badge",
         focusKind === "now" ? "現在" :
-        focusKind === "next" ? (neighbours.evening ? "今晚準備" : "即將開始") :
+        focusKind === "next" ? (neighbours.evening && neighbours.evening.items.length ? "今晚準備" : "即將開始") :
         "行程結束"));
     }
     var t = el("div", "card-time");
@@ -439,10 +444,12 @@
       // 狀態與動作分開：同一顆按鈕塞十四個字，大字級下一定破版
       var eo = el("div", "end-of-day");
       eo.appendChild(el("div", "end-of-day-text", "今日行程已結束"));
-      var eb = el("button", "end-of-day-btn", "看今晚準備");
-      eb.type = "button";
-      eb.addEventListener("click", function () { jumpToCard(cardById(neighbours.endOfDay.nextId)); });
-      eo.appendChild(eb);
+      if (neighbours.endOfDay.items.length) {      // 沒有待辦就沒有地方可去，按鈕不放
+        var eb = el("button", "end-of-day-btn", "看今晚準備");
+        eb.type = "button";
+        eb.addEventListener("click", function () { jumpToCard(cardById(neighbours.endOfDay.nextId)); });
+        eo.appendChild(eb);
+      }
       body.appendChild(eo);
     }
     if (state.editing) body.appendChild(adminRow(e, neighbours));

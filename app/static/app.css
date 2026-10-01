@@ -277,7 +277,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .night-sub{display:block;font-size:.9rem;font-weight:600;color:var(--dim);line-height:1.3}
 .night-alarm{font-size:1.55rem;font-weight:800;line-height:1.25}
 .night.early .night-alarm{font-size:2rem}
-.night-none,.night-sep{color:var(--dim);font-size:.85rem;font-weight:700;margin-top:.2rem}
+.night-sep{color:var(--dim);font-size:.85rem;font-weight:700;margin-top:.2rem}
 .night-sep{margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem}
 .end-of-day{margin-top:.9rem;background:var(--card2);border:1px solid var(--line);border-radius:12px;
   padding:.5rem .8rem .2rem}
