@@ -12,6 +12,8 @@
   --radius:16px;
   --ease:cubic-bezier(.22,.61,.36,1);
   font-size:18px;
+  /* 日期軌寬度：跟字級長，但封頂 —— 它佔的是卡片的欄寬 */
+  --rail-w:min(2.3rem,48px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* 作者樣式的 display 會蓋掉 UA 的 [hidden]{display:none} — 這裡把它釘回來 */
@@ -42,17 +44,17 @@ button{font:inherit;color:inherit;cursor:pointer}
 /* 兩行都強制單行：頁首一換行就變高，snapTop() 跟著漂，
    IO 的錨線帶和對齊用的線就不再是同一條 → 焦點會判到隔壁那張。 */
 .trip-title,.trip-clock{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.trip-title{font-size:1.1rem;font-weight:800;letter-spacing:.03em}
-.trip-clock{font-size:.85rem;color:var(--dim);font-variant-numeric:tabular-nums}
+.trip-title{font-size:min(1.1rem,24px);font-weight:800;letter-spacing:.03em}
+.trip-clock{font-size:min(.85rem,18px);color:var(--dim);font-variant-numeric:tabular-nums}
 .edit-toggle{
   background:var(--card2);border:1px solid var(--line);border-radius:999px;
-  padding:.5rem 1.1rem;font-size:.95rem;font-weight:600;color:var(--dim);
+  padding:.5rem 1.1rem;font-size:min(.95rem,20px);font-weight:600;color:var(--dim);
 }
 .edit-toggle.on{background:var(--accent);border-color:var(--accent);color:#04121f}
 
 /* ---------------------------------------------------------------- timeline */
 /* 上下留白：第一張要能停到錨線，最後一張也要 */
-.timeline{padding:50dvh calc(.85rem + 2.3rem) calc(100dvh - 10rem) .85rem;
+.timeline{padding:50dvh calc(.85rem + var(--rail-w)) calc(100dvh - 10rem) .85rem;
   max-width:640px;margin:0 auto}
 .loading{color:var(--dim);text-align:center;padding:3rem 0}
 
@@ -196,7 +198,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   position:fixed; right:0; z-index:35;
   top:calc(3.2rem + env(safe-area-inset-top));
   bottom:calc(.6rem + env(safe-area-inset-bottom));
-  width:2.3rem; display:flex; flex-direction:column;
+  width:var(--rail-w); display:flex; flex-direction:column;
   background:linear-gradient(90deg,transparent,rgba(18,24,38,.92) 35%);
   border-left:1px solid var(--line);
   padding:.25rem 0;
@@ -284,7 +286,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .later-row{display:flex;align-items:center;gap:.7rem;width:100%;min-height:48px;background:none;
   border:0;border-top:1px solid var(--line);color:var(--fg);font:inherit;text-align:left}
 .later-time{flex:none;color:var(--dim);font-variant-numeric:tabular-nums;font-weight:700}
-.later-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.later-title{flex:1;min-width:0;padding:.3rem 0;line-height:1.35}
 .later-warn{flex:none;color:var(--warn-fg)}
 
 /* ------------------------------------------------------------------ modal */

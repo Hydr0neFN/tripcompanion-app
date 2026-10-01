@@ -157,18 +157,23 @@
     more.hidden = shown >= items.length;
     more.textContent = open ? "收起 ▴" : "還有 " + (items.length - shown) + " 項 ▾";
   }
-  /* 先全部量完（一次 reflow）、再一起寫，免得每張卡各強迫排版一次。 */
+  /* 預覽預算：min(3 行, 可用高度的 12%)。字級放大時行高跟著長，只看「3 行」會讓卡片膨脹到把
+     下一張擠下摺線；加上 12% 的上限就會自己收斂：小字看三行、特大字可能只看一項。
+     全部在 runtime 量，沒有斷點、沒有字數常數。先全部量完（一次 reflow）、再一起寫。 */
   function fitNotes() {
     var boxes = Array.prototype.slice.call($timeline.querySelectorAll(".notes-fold"));
+    if (!boxes.length) return;
+    var vh = Math.min(window.innerHeight, window.visualViewport ? window.visualViewport.height : 1e9);
+    var usable = Math.max(200, vh - headerBottom());
     var plan = boxes.map(function (box) {
       var items = box.querySelectorAll(".note-item");
       for (var i = 0; i < items.length; i++) items[i].hidden = false;
-      // 數「行」而不是量像素：項目之間的間距不是一行文字
       var lh = parseFloat(getComputedStyle(items[0]).lineHeight) || 24;
-      var lines = Math.max(1, Math.round(items[0].offsetHeight / lh)), shown = 1;
+      var budget = Math.min(NOTES_LINES * lh, 0.12 * usable) + 1;
+      var sum = items[0].offsetHeight, shown = 1;
       for (var k = 1; k < items.length; k++) {
-        lines += Math.max(1, Math.round(items[k].offsetHeight / lh));
-        if (lines <= NOTES_LINES) shown = k + 1;
+        sum += items[k].offsetHeight;
+        if (sum <= budget) shown = k + 1;
         else break;
       }
       return shown;
@@ -176,7 +181,18 @@
     boxes.forEach(function (box, i) { box.dataset.shown = plan[i]; applyNotes(box); });
   }
   var fitTimer = null;
-  function refitSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(fitNotes, 150); }
+  var lastScrollAt = 0;
+  /* 預覽項數一變，焦點卡的高度就變 —— 不能在捲動中發生（規則 0），所以只在靜止時重算 */
+  function refitSoon() {
+    clearTimeout(fitTimer);
+    fitTimer = setTimeout(function run() {
+      if (touching || jumping || gliding || swapping || Date.now() - lastScrollAt < 250) {
+        fitTimer = setTimeout(run, 250);
+        return;
+      }
+      fitNotes();
+    }, 150);
+  }
   window.addEventListener("resize", refitSoon);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(refitSoon);
   function hintRow(e) {
@@ -1297,12 +1313,13 @@
     });
   }
   window.addEventListener("scroll", function () {
+    lastScrollAt = Date.now();
     reobserveIfViewportChanged();
     scheduleSettle();
   }, { passive: true });
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", function () {
-      applyScrollPadding(); setupObserver();
+      applyScrollPadding(); setupObserver(); refitSoon();
     });
   }
   window.addEventListener("orientationchange", function () {
@@ -1314,8 +1331,39 @@
   });
   applyScrollPadding();
 
+  /* 跟隨系統字級（iOS 動態字型）。網頁只有用 font:-apple-system-body 才會吃到系統設定，
+     寫死 px 的根字級會把「字體大小」那條滑桿整個吃掉 —— 家裡四支手機從最小到特大都有。
+     做法：用一個不顯示的探針量出系統 body 字級（預設 Large = 17px），按比例換成根字級
+     （17px ↔ 18px，維持原本的版面），其餘全部是 rem，會跟著長。回到前景、轉向時重量一次。
+     不支援這個關鍵字的瀏覽器（桌機）整段略過，維持 CSS 裡的 18px。 */
+  var curRoot = 0, textProbe = null;
+  function syncTextSize(rerender) {
+    if (!textProbe) return;
+    var px = parseFloat(getComputedStyle(textProbe).fontSize);
+    if (!(px > 0)) return;
+    var root = Math.max(14, Math.min(px * 18 / 17, 44));
+    if (Math.abs(root - curRoot) < 0.1) return;
+    curRoot = root;
+    document.documentElement.style.fontSize = root + "px";
+    if (!rerender || !state.events.length) return;
+    applyScrollPadding(); setupObserver();
+    lastRenderKey = "";     // 版面整個變了：重建並把焦點卡放回同一個位置，順便重算備註預覽項數
+    render();
+  }
+  if (window.CSS && CSS.supports && CSS.supports("font", "-apple-system-body")) {
+    // 探針的大小由系統字級決定；iOS 沒有「字級改變」事件，但它一變，ResizeObserver 就會叫
+    textProbe = el("span");
+    textProbe.setAttribute("aria-hidden", "true");
+    textProbe.style.cssText = "position:absolute;left:-99px;top:0;visibility:hidden;" +
+      "pointer-events:none;font:-apple-system-body;width:1em;height:1em";
+    document.body.appendChild(textProbe);
+    syncTextSize(false);
+    if (window.ResizeObserver) new ResizeObserver(function () { syncTextSize(true); }).observe(textProbe);
+  }
+  window.addEventListener("pageshow", function () { syncTextSize(true); });
+
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) refresh(false);
+    if (!document.hidden) { syncTextSize(true); refresh(false); }
   });
   setInterval(function () { refresh(false); }, POLL_MS);
   setInterval(function () { render(); tickClock(); }, 15000);
