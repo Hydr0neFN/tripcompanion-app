@@ -392,8 +392,10 @@
     fold.appendChild(foldIn);
     if (e.warning) {
       var w = el("div", "warn");
-      w.appendChild(el("span", "warn-ico", "⚠ "));     // 行內：只吃第一行，其餘行用滿欄寬
-      w.appendChild(rich("span", null, e.warning));
+      // 文字自己常以「⚠ 」或「✔ 」開頭：圖示只留一個，✔ 開頭的（已處理）用 ✔，不要再疊一個 ⚠
+      var wm = /^\s*(⚠|✔)️?\s*/.exec(e.warning);
+      w.appendChild(el("span", "warn-ico", (wm && wm[1] === "✔" ? "✔ " : "⚠ ")));   // 行內：只吃第一行，其餘行用滿欄寬
+      w.appendChild(rich("span", null, wm ? e.warning.slice(wm[0].length) : e.warning));
       foldIn.appendChild(w);
     }
 
