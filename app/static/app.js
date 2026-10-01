@@ -412,7 +412,7 @@
     }
     if (e.code) {
       var rc = el("div", "row");
-      rc.appendChild(el("div", "row-label", "訂位／訂單代碼"));
+      rc.appendChild(el("div", "row-label", "訂位／訂單代號"));
       rc.appendChild(el("div", "code-box", e.code));
       body.appendChild(rc);
     }
@@ -1061,7 +1061,7 @@
     form.appendChild(field("時區", "tz", ev ? ev.tz : tzOpts[0][0], "select", tzOpts));
     form.appendChild(field("城市", "city", ev && ev.city, "text"));
     form.appendChild(field("地點（會用來開 Google 地圖）", "location", ev && ev.location, "text"));
-    form.appendChild(field("訂位／訂單代碼", "code", ev && ev.code, "text"));
+    form.appendChild(field("訂位／訂單代號", "code", ev && ev.code, "text"));
     form.appendChild(field("⚠ 注意事項（顯示在卡片最上方）", "warning", ev && ev.warning, "textarea"));
     form.appendChild(field("備註", "notes", ev && ev.notes, "textarea"));
     form.appendChild(field("💡 小提示（空一行分段；每段第一行是摘要，其餘點開才看得到）",
