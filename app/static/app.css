@@ -134,11 +134,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 }
 
 .warn{
-  display:flex;gap:.6rem;background:var(--warn-bg);color:var(--warn-fg);
-  border:1px solid var(--warn-line);border-radius:12px;padding:.75rem .85rem;
+  background:var(--warn-bg);color:var(--warn-fg);
+  border:1px solid var(--warn-line);border-radius:12px;padding:.6rem .7rem;
   margin:0 1rem .85rem;font-size:1rem;font-weight:600;line-height:1.5;
 }
-.warn .warn-ico{flex:none}
 .card.settled .warn-chip{display:none}
 
 .card-body{padding:0 1rem 1rem}
@@ -251,13 +250,42 @@ button{font:inherit;color:inherit;cursor:pointer}
 .hint-body{margin-top:.45rem;color:var(--dim);white-space:pre-wrap;line-height:1.5}
 .hint-flat{font-weight:600}
 .eve{white-space:pre-wrap;font-weight:600;line-height:1.45}
-.preview{background:#122036;border:1px solid #27466e;border-radius:12px;padding:.75rem .85rem;
-  margin-top:.6rem}
-.preview:first-child{margin-top:0}
-.preview-head{font-weight:800}
-.preview-sub{margin-top:.6rem;font-size:.85rem;color:var(--dim);font-weight:700}
-.preview-item{margin-top:.25rem;white-space:pre-wrap;line-height:1.45}
-.preview-item.dim{color:var(--dim2);margin-top:.6rem}
+
+/* ------------------------------------------------------------------ 今晚預備 */
+.night{margin:.2rem 1rem .5rem;padding:.7rem .85rem .5rem;border-radius:14px;
+  background:#122036;border:1px solid #27466e}
+.night.early{background:#3a1218;border-color:#b23a48}
+.night-early{color:#ff9aa5;font-weight:800;letter-spacing:.04em}
+.night-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-weight:800}
+.night-back{min-height:48px;padding:0 .2rem 0 .8rem;background:none;border:0;color:var(--accent);
+  font:inherit;font-size:.95rem;font-weight:700;-webkit-tap-highlight-color:transparent}
+.night-item{display:flex;align-items:center;gap:.7rem;width:100%;min-height:48px;padding:.15rem 0;
+  background:none;border:0;color:var(--fg);font:inherit;font-size:1rem;font-weight:600;text-align:left;
+  -webkit-tap-highlight-color:transparent}
+.night-check{flex:none;width:1.6rem;height:1.6rem;border-radius:50%;border:2px solid var(--dim);
+  display:grid;place-items:center;font-size:1rem;font-weight:800;color:#04121f}
+.night-item.done .night-check{background:var(--accent);border-color:var(--accent)}
+.night-item.done .night-title{color:var(--dim);text-decoration:line-through}
+.night-due{color:var(--dim);font-variant-numeric:tabular-nums}
+.night-sub{display:block;font-size:.9rem;font-weight:600;color:var(--dim);line-height:1.3}
+.night-alarm{font-size:1.55rem;font-weight:800;line-height:1.25}
+.night.early .night-alarm{font-size:2rem}
+.night-none,.night-sep{color:var(--dim);font-size:.85rem;font-weight:700;margin-top:.2rem}
+.night-sep{margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem}
+.end-of-day{display:block;width:100%;min-height:48px;margin-top:.9rem;background:var(--card2);
+  border:1px solid var(--line);border-radius:12px;color:var(--accent);font:inherit;font-weight:700}
+.later{margin:0 1rem .9rem;background:var(--card2);border:1px solid var(--line);border-radius:12px;
+  padding:0 .75rem}
+.later summary{min-height:48px;display:flex;align-items:center;cursor:pointer;font-weight:700;
+  list-style:none;-webkit-tap-highlight-color:transparent}
+.later summary::-webkit-details-marker{display:none}
+.later summary::after{content:" ▸";color:var(--dim);margin-left:.3rem}
+.later[open] summary::after{content:" ▾"}
+.later-row{display:flex;align-items:center;gap:.7rem;width:100%;min-height:48px;background:none;
+  border:0;border-top:1px solid var(--line);color:var(--fg);font:inherit;text-align:left}
+.later-time{flex:none;color:var(--dim);font-variant-numeric:tabular-nums;font-weight:700}
+.later-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.later-warn{flex:none;color:var(--warn-fg)}
 
 /* ------------------------------------------------------------------ modal */
 .modal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.65);
@@ -295,7 +323,7 @@ textarea{min-height:5rem;resize:vertical}
 .btn.ghost{background:var(--card2);color:var(--fg);border:1px solid var(--line)}
 .pin-input{font-size:2rem;text-align:center;letter-spacing:.6rem;font-weight:800}
 .err{color:#ff8a8a;font-size:.95rem;min-height:1.4em;margin:.3rem 0}
-.hint{color:var(--dim2);font-size:.85rem;margin:.2rem 0 .8rem}
+.modal-hint{color:var(--dim2);font-size:.85rem;margin:.2rem 0 .8rem}
 
 /* ------------------------------------------------------------------ passcode（iOS 解鎖畫面式） */
 .passcode{

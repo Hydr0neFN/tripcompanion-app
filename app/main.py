@@ -305,6 +305,7 @@ def api_state(request: Request):
     con = db.connect()
     try:
         events = load_events(con)
+        prep = load_prep(con)
         rev = db.get_rev(con)
     finally:
         con.close()
@@ -319,6 +320,7 @@ def api_state(request: Request):
         "rev": rev,
         "title": TRIP_TITLE,
         "events": events,
+        "night_prep": prep,
     })
 
 
@@ -453,6 +455,135 @@ def reorder_events(request: Request, payload: dict = Body(...)):
         db.bump_rev(con)
         con.commit()
         return jresp({"ok": True})
+    finally:
+        con.close()
+
+
+# ------------------------------------------------------------------ night prep
+# Things to do before bed, authored per date (never derived from event text). The evening view
+# shows the ones whose target_date is the evening that just started. is_done is shared state.
+
+TIME_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
+
+
+def prep_json(r) -> dict:
+    return {
+        "id": r["id"], "target_date": r["target_date"], "title": r["title"],
+        "alarm_time": r["alarm_time"], "due_time": r["due_time"],
+        "is_done": bool(r["is_done"]), "linked_event_id": r["linked_event_id"],
+        "position": r["position"],
+    }
+
+
+def load_prep(con) -> list[dict]:
+    rows = con.execute("SELECT * FROM night_prep ORDER BY target_date, position, id").fetchall()
+    return [prep_json(r) for r in rows]
+
+
+def clean_prep(p: dict) -> tuple[dict | None, str]:
+    title = (p.get("title") or "").strip()
+    if not title:
+        return None, "標題不能空白"
+    day = (p.get("target_date") or "").strip()
+    try:
+        datetime.date.fromisoformat(day)
+    except ValueError:
+        return None, "日期格式要是 YYYY-MM-DD"
+    alarm = (p.get("alarm_time") or "").strip()
+    due = (p.get("due_time") or "").strip()
+    if (alarm and not TIME_RE.match(alarm)) or (due and not TIME_RE.match(due)):
+        return None, "時間格式要是 HH:MM"
+    linked = p.get("linked_event_id")
+    if linked in (None, ""):
+        linked = None
+    else:
+        try:
+            linked = int(linked)
+        except (TypeError, ValueError):
+            return None, "linked_event_id 要是事件編號"
+    return {"title": title[:120], "target_date": day, "alarm_time": alarm, "due_time": due,
+            "linked_event_id": linked}, ""
+
+
+@app.post("/api/night_prep")
+def create_prep(request: Request, payload: dict = Body(...)):
+    if (err := need_editor(request)):
+        return err
+    data, msg = clean_prep(payload)
+    if not data:
+        return jresp({"error": msg}, 400)
+    con = db.connect()
+    try:
+        if data["linked_event_id"] is not None and not con.execute(
+                "SELECT 1 FROM events WHERE id=?", (data["linked_event_id"],)).fetchone():
+            return jresp({"error": "找不到這個事件"}, 404)
+        pos = con.execute("SELECT COALESCE(MAX(position),0)+1 p FROM night_prep WHERE target_date=?",
+                          (data["target_date"],)).fetchone()["p"]
+        cur = con.execute(
+            "INSERT INTO night_prep(target_date,title,alarm_time,due_time,is_done,linked_event_id,"
+            "position) VALUES(:target_date,:title,:alarm_time,:due_time,:is_done,:linked_event_id,"
+            ":position)", {**data, "is_done": 1 if payload.get("is_done") else 0, "position": pos})
+        db.bump_rev(con)
+        con.commit()
+        return jresp({"id": cur.lastrowid, "rev": db.get_rev(con)})
+    finally:
+        con.close()
+
+
+@app.put("/api/night_prep/{prep_id}")
+def update_prep(request: Request, prep_id: int, payload: dict = Body(...)):
+    if (err := need_editor(request)):
+        return err
+    data, msg = clean_prep(payload)
+    if not data:
+        return jresp({"error": msg}, 400)
+    if "is_done" in payload:                 # omitted -> keep, like hint/eve on events
+        data["is_done"] = 1 if payload.get("is_done") else 0
+    con = db.connect()
+    try:
+        if data["linked_event_id"] is not None and not con.execute(
+                "SELECT 1 FROM events WHERE id=?", (data["linked_event_id"],)).fetchone():
+            return jresp({"error": "找不到這個事件"}, 404)
+        sets = ", ".join(f"{k}=:{k}" for k in data)     # keys come from clean_prep only
+        cur = con.execute(f"UPDATE night_prep SET {sets}, updated_at=datetime('now') WHERE id=:id",
+                          {**data, "id": prep_id})
+        if cur.rowcount == 0:
+            return jresp({"error": "找不到這個項目"}, 404)
+        db.bump_rev(con)
+        con.commit()
+        return jresp({"ok": True, "rev": db.get_rev(con)})
+    finally:
+        con.close()
+
+
+@app.put("/api/night_prep/{prep_id}/done")
+def set_prep_done(request: Request, prep_id: int, payload: dict = Body(...)):
+    if (err := need_editor(request)):
+        return err
+    con = db.connect()
+    try:
+        cur = con.execute("UPDATE night_prep SET is_done=?, updated_at=datetime('now') WHERE id=?",
+                          (1 if payload.get("done") else 0, prep_id))
+        if cur.rowcount == 0:
+            return jresp({"error": "找不到這個項目"}, 404)
+        db.bump_rev(con)
+        con.commit()
+        return jresp({"ok": True, "rev": db.get_rev(con)})
+    finally:
+        con.close()
+
+
+@app.delete("/api/night_prep/{prep_id}")
+def delete_prep(request: Request, prep_id: int):
+    if (err := need_editor(request)):
+        return err
+    con = db.connect()
+    try:
+        if con.execute("DELETE FROM night_prep WHERE id=?", (prep_id,)).rowcount == 0:
+            return jresp({"error": "找不到這個項目"}, 404)
+        db.bump_rev(con)
+        con.commit()
+        return jresp({"ok": True, "rev": db.get_rev(con)})
     finally:
         con.close()
 

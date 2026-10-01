@@ -15,7 +15,7 @@
   var qs = new URLSearchParams(location.search);
   var DEBUG_NOW = qs.get("debug_now") || "";
 
-  var state = { events: [], rev: -1, editing: false, nowTs: 0, fetchedAt: 0,
+  var state = { events: [], nightPrep: [], rev: -1, editing: false, nowTs: 0, fetchedAt: 0,
                 clockLabel: "", tzChoices: [], tripTz: "" };
   var PEEK = 64;                // 焦點卡上方留給前一張露臉的高度（px）
   var focusEventId = null;      // 停在錨線上的那張 — 只換高亮，不動版面
@@ -206,33 +206,113 @@
     return r;
   }
 
-  /* 明日預告：當天行程全部結束、焦點跳到隔天第一站時，在那張卡上列出
-     「今晚要先準備的」和「明天其他行程的注意事項」—— 回到住處睡前看一眼就夠。 */
-  function previewBox(p) {
-    var box = el("div", "preview");
-    box.appendChild(el("div", "preview-head",
-      "🌙 " + p.word + "（" + p.label + "）共 " + p.events.length + " 個行程"));
-    var hhmm = function (x) { return x.time_label.slice(0, 5) + "　" + x.title; };
-    var eves = p.events.filter(function (x) { return x.eve; });
-    if (eves.length) {
-      box.appendChild(el("div", "preview-sub", "今晚先準備"));
-      eves.forEach(function (x) {
-        box.appendChild(rich("div", "preview-item", hhmm(x) + "：" + x.eve));
-      });
-    }
-    // 第一站自己的 warning 已經在卡片最上面，這裡只列其他行程的
-    var warns = p.events.filter(function (x, i) { return i > 0 && x.warning; });
-    if (warns.length) {
-      box.appendChild(el("div", "preview-sub", p.word + "其他要注意的"));
-      warns.forEach(function (x) {
-        box.appendChild(rich("div", "preview-item", "⚠ " + hhmm(x) + "：" + x.warning));
-      });
-    }
-    if (p.events.length > 1) {
-      box.appendChild(el("div", "preview-item dim",
-        "最後一站 " + hhmm(p.events[p.events.length - 1])));
-    }
+  /* ---------------------------------------------------------------- 今晚預備
+     一天結束後，下一天的第一站那張卡變成「今晚預備」：
+       區塊 1 今晚就寢前 — 鬧鐘最大最先，其餘是全家共用的打勾清單（night_prep，行程書逐日寫好，
+                          不從事件文字推算）
+       區塊 2 明日首站   — 就是這張卡本身（時間、地點、地圖、警告）
+       區塊 3 明日後續   — 收成一行，點開才列
+     切換時間 flip_at = max(當天最後一個行程結束 + 30 分, 當天當地 19:30)，沒有第二條規則。
+     不設 23:00 的硬門檻：跨年夜 23:55 吃葡萄時不能把畫面翻去明天。 */
+  function eveningInfo(events, f, now) {
+    if (f.kind !== "next" || f.idx < 1) return null;
+    var nx = events[f.idx], prev = events[f.idx - 1];
+    if (prev.day_key === nx.day_key) return null;
+    var dayEnd = 0;
+    events.forEach(function (x) {
+      if (x.day_key !== prev.day_key) return;
+      var en = x.end_ts != null ? x.end_ts : x.start_ts + DEFAULT_DUR;
+      if (en > dayEnd) dayEnd = en;
+    });
+    // 19:30 是「那天當地」的 19:30 → 用那個事件自己的牆上時間與 UTC 的差換算
+    var off = Date.parse(prev.start_at + ":00Z") / 1000 - prev.start_ts;
+    var floor = Date.parse(prev.day_key + "T19:30:00Z") / 1000 - off;
+    if (now < Math.max(dayEnd + 1800, floor)) return null;
+    var today = dayKeyIn(nx, now), tomorrow = dayKeyIn(nx, now + 86400);
+    return {
+      word: nx.day_key === today ? "今天" : nx.day_key === tomorrow ? "明天" : "下一天",
+      date: prev.day_key, prevId: prev.id, nextId: nx.id,
+      rest: events.filter(function (x) { return x.day_key === nx.day_key && x.id !== nx.id; }),
+      items: state.nightPrep.filter(function (p) { return p.target_date === prev.day_key; })
+    };
+  }
+
+  function paintPrep(btn, item) {
+    btn.classList.toggle("done", item.is_done);
+    btn.setAttribute("aria-checked", item.is_done ? "true" : "false");
+    btn.querySelector(".night-check").textContent = item.is_done ? "✓" : "";
+  }
+  function toggleDone(item, btn) {
+    var want = !item.is_done;
+    item.is_done = want;
+    paintPrep(btn, item);
+    api("/api/night_prep/" + item.id + "/done", { method: "PUT", json: { done: want } })
+      .then(function (r) {
+        // 剛好是自己造成的版本號 +1 → 不必為了這個整條重建；別人同時改過就照常重建
+        if (r.rev === state.rev + 1) {
+          state.rev = r.rev;
+          lastRenderKey = lastRenderKey.replace(/^[^|]*/, function () { return String(r.rev); });
+        }
+      })
+      .catch(function (x) { item.is_done = !want; paintPrep(btn, item); toast(x.message); });
+  }
+  function prepRow(item, cls, label, sub) {
+    var b = el("button", "night-item" + (cls ? " " + cls : ""));
+    b.type = "button";
+    b.setAttribute("role", "checkbox");
+    b.appendChild(el("span", "night-check"));
+    var t = el("span", "night-title");
+    t.appendChild(rich("span", null, label));
+    if (sub) t.appendChild(rich("span", "night-sub", sub));
+    if (item.due_time && !item.alarm_time) t.appendChild(el("span", "night-due", "　" + item.due_time));
+    b.appendChild(t);
+    paintPrep(b, item);
+    b.addEventListener("click", function () { toggleDone(item, b); });
+    return b;
+  }
+
+  function nightBlock(ev, e) {
+    var early = parseInt(e.start_at.slice(11, 13), 10) < 6;     // 天亮前出發
+    var box = el("section", "night" + (early ? " early" : ""));
+    box.setAttribute("aria-label", "今晚預備");
+    if (early) box.appendChild(el("div", "night-early", "⚠ 今夜特早出發"));
+    var hd = el("div", "night-head");
+    hd.appendChild(el("span", null, "🌙 今晚就寢前"));
+    var back = el("button", "night-back", "↑ 回到今天");
+    back.type = "button";
+    back.addEventListener("click", function () { jumpToCard(cardById(ev.prevId)); });
+    hd.appendChild(back);
+    box.appendChild(hd);
+    var morning = ev.word === "明天" ? "明早" : ev.word === "今天" ? "今早" : "";
+    var alarms = ev.items.filter(function (x) { return x.alarm_time; });
+    var rest = ev.items.filter(function (x) { return !x.alarm_time; });
+    alarms.forEach(function (x) {
+      box.appendChild(prepRow(x, "night-alarm", morning + "鬧鐘 " + x.alarm_time, x.title));
+    });
+    rest.forEach(function (x) { box.appendChild(prepRow(x, "", x.title)); });
+    if (!ev.items.length) box.appendChild(el("div", "night-none", "今晚沒有要先準備的事。"));
+    box.appendChild(el("div", "night-sep", ev.word + "第一站"));
     return box;
+  }
+
+  /* 區塊 3：收成一行，點開才列；每列點下去就滑到那張卡 */
+  var laterOpen = {};
+  function laterBlock(ev) {
+    if (!ev.rest.length) return null;
+    var d = el("details", "later");
+    d.open = !!laterOpen[ev.nextId];
+    d.appendChild(el("summary", null, ev.word + "後續 " + ev.rest.length + " 個行程"));
+    ev.rest.forEach(function (x) {
+      var b = el("button", "later-row");
+      b.type = "button";
+      b.appendChild(el("span", "later-time", x.time_label.slice(0, 5)));
+      b.appendChild(el("span", "later-title", x.title));
+      if (x.warning) b.appendChild(el("span", "later-warn", "⚠"));
+      b.addEventListener("click", function () { jumpToCard(cardById(x.id)); });
+      d.appendChild(b);
+    });
+    d.addEventListener("toggle", function () { laterOpen[ev.nextId] = d.open; });
+    return d;
   }
 
   /* 「今天」要用那個事件自己時區的日期，不是旅程時鐘的：伊斯坦堡 00:30 時馬德里還是前一天，
@@ -251,6 +331,10 @@
     // 日期標籤放在卡片「裡面」。獨立的分隔元素會在時間軸上留下一段沒有吸附點的
     // 空隙，mandatory 吸附在那裡判定容易翻面，正是日期線附近彈跳的來源。
     if (dayLabel) card.appendChild(el("div", "day-tag", dayLabel));
+    if (neighbours.evening) {
+      card.classList.add("evening");
+      card.appendChild(nightBlock(neighbours.evening, e));
+    }
 
     var head = el("button", "card-head");
     head.type = "button";
@@ -260,7 +344,7 @@
     if (cls.indexOf("now") >= 0) {
       ht.appendChild(el("div", "now-badge",
         focusKind === "now" ? "現在" :
-        focusKind === "next" ? (neighbours.preview ? neighbours.preview.word + "第一站" : "即將開始") :
+        focusKind === "next" ? (neighbours.evening ? "今晚預備" : "即將開始") :
         "行程結束"));
     }
     var t = el("div", "card-time");
@@ -282,14 +366,13 @@
     fold.appendChild(foldIn);
     if (e.warning) {
       var w = el("div", "warn");
-      w.appendChild(el("span", "warn-ico", "⚠"));
+      w.appendChild(el("span", "warn-ico", "⚠ "));     // 行內：只吃第一行，其餘行用滿欄寬
       w.appendChild(rich("span", null, e.warning));
       foldIn.appendChild(w);
     }
-    if (neighbours.preview) foldIn.appendChild(previewBox(neighbours.preview));
 
     var body = el("div", "card-body");
-    if (e.eve && !neighbours.preview) body.appendChild(eveRow(e.eve));
+    if (e.eve) body.appendChild(eveRow(e.eve));
     if (e.location) {
       var r = el("div", "row");
       r.appendChild(el("div", "row-label", "地點"));
@@ -333,8 +416,18 @@
       rn.appendChild(notesBlock(e));
       body.appendChild(rn);
     }
+    if (neighbours.endOfDay) {
+      var eb = el("button", "end-of-day", "今日行程已結束　↓ 看今晚預備");
+      eb.type = "button";
+      eb.addEventListener("click", function () { jumpToCard(cardById(neighbours.endOfDay.nextId)); });
+      body.appendChild(eb);
+    }
     if (state.editing) body.appendChild(adminRow(e, neighbours));
     foldIn.appendChild(body);
+    if (neighbours.evening) {
+      var later = laterBlock(neighbours.evening);
+      if (later) foldIn.appendChild(later);
+    }
     card.appendChild(fold);
     return card;
   }
@@ -380,17 +473,8 @@
     var events = state.events;
     var now = nowTs();
     var f = focusInfo(events, now);
-    // 一天結束、焦點落在下一個行程日的第一站 → 那張卡帶上明日預告
-    var preview = null, nx = events[f.idx];
-    if (f.kind === "next" && f.idx > 0 && events[f.idx - 1].day_key !== nx.day_key) {
-      var today = dayKeyIn(nx, now), tomorrow = dayKeyIn(nx, now + 86400);
-      preview = {
-        word: nx.day_key === today ? "今天" : nx.day_key === tomorrow ? "明天" : "下一天",
-        label: nx.day_label,
-        events: events.filter(function (x) { return x.day_key === nx.day_key; })
-      };
-    }
-    var key = [state.rev, f.idx, f.kind, state.editing, preview ? preview.word : ""].join("|");
+    var evening = eveningInfo(events, f, now);
+    var key = [state.rev, f.idx, f.kind, state.editing, evening ? evening.word : ""].join("|");
     if (key === lastRenderKey && !pendingScrollToNow) return;
     lastRenderKey = key;
 
@@ -423,7 +507,8 @@
       frag.appendChild(buildCard(e, cls, f.kind, {
         prevSame: prev && prev.start_at === e.start_at && prev.tz === e.tz ? prev : null,
         nextSame: next && next.start_at === e.start_at && next.tz === e.tz ? next : null,
-        preview: isFocus ? preview : null
+        evening: isFocus ? evening : null,
+        endOfDay: evening && e.id === evening.prevId ? evening : null
       }, dayLabel));
     });
     if (f.kind === "done") {
@@ -848,6 +933,7 @@
       state.nowLabelBase = d.now_label;
       state.clockLabel = d.clock_label || "";
       state.tzChoices = d.tz_choices || [];
+      state.nightPrep = d.night_prep || [];
       state.tripTz = d.trip_tz || "";
       // 伺服器給的旅程時區牆上時間與 UTC 的差，用來在本機推進時鐘
       state.tzOffsetSec = tripTzOffset(d.now_ts, d.now_label);
@@ -1125,7 +1211,7 @@
   function openPinForm() {
     var body = openModal("編輯模式");
     var form = el("form");
-    form.appendChild(el("div", "hint", "輸入共用 PIN 解鎖；解鎖後可以查看與修改行程。"));
+    form.appendChild(el("div", "modal-hint", "輸入共用 PIN 解鎖；解鎖後可以查看與修改行程。"));
     var l = el("label", "f");
     l.appendChild(el("span", null, "PIN"));
     var input = el("input", "pin-input");
