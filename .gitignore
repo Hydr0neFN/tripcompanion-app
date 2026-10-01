@@ -8,6 +8,9 @@ app.tar.gz
 # 格式範例見 sample-itinerary.html。
 itinerary-source.html
 
+# 行程文字的修訂批次（warning／notes／title 原文），同樣是真實內容
+/patches/
+
 # 原始需求書，含真實訂位代碼與對外網域
 SPEC.md
 
