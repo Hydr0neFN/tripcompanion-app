@@ -24,6 +24,13 @@ FastAPI + SQLite + vanilla JS. No build step, no framework, no bundler — clone
 * **Cards carry what you need mid-trip:** ⚠ warnings pinned to the top, start/end times, title, city, a
   location that opens Google Maps, booking codes rendered large, and ticket attachments (PDF/JPG/PNG)
   as open buttons.
+* **Collapsed hints.** `hint` holds practical tips that stay folded until tapped: blank-line-separated
+  blocks, each block's first line is the teaser and the rest opens on tap. `warning` stays for the things
+  that break the trip and is always open.
+* **Tomorrow preview.** Once a day's last event is over and the focus has moved to the next day's first
+  stop, that card lists what to prepare tonight (each event's `eve` field) and the next day's other
+  warnings. "Today/tomorrow" is judged in the event's own timezone, so a red-eye after midnight in
+  another zone is not called "tomorrow".
 * **Date rail** down the right edge: one cell per day, tinted cells showing how much of the trip has
   elapsed *by the clock*, a dot on today, an accent bar on the day being viewed. Tap a cell to jump to
   that day's first event.

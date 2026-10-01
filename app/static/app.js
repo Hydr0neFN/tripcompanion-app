@@ -112,6 +112,72 @@
   }
 
   // ------------------------------------------------------------------ 渲染
+  /* 小提示：空一行分段，每段第一行是摘要（收合時就看得到），其餘點開才出現。
+     禮儀、「這裡怎麼運作」放這裡；會壞事的（日期、關門時間）留在 warning，永遠攤開。 */
+  var hintOpen = {};
+  function hintRow(e) {
+    var blocks = (e.hint || "").split(/\n\s*\n/).map(function (b) { return b.trim(); })
+      .filter(Boolean);
+    if (!blocks.length) return null;
+    var r = el("div", "row");
+    r.appendChild(el("div", "row-label", "小提示"));
+    blocks.forEach(function (b, i) {
+      var lines = b.split("\n"), head = lines.shift(), rest = lines.join("\n").trim();
+      if (!rest) { r.appendChild(el("div", "hint hint-flat", "💡 " + head)); return; }
+      var key = e.id + ":" + i;
+      var d = el("details", "hint");
+      d.open = !!hintOpen[key];          // 每 30 秒重建時保留展開狀態
+      d.appendChild(el("summary", null, "💡 " + head));
+      d.appendChild(el("div", "hint-body", rest));
+      d.addEventListener("toggle", function () { hintOpen[key] = d.open; });
+      r.appendChild(d);
+    });
+    return r;
+  }
+
+  function eveRow(text) {
+    var r = el("div", "row");
+    r.appendChild(el("div", "row-label", "前一晚要準備"));
+    r.appendChild(el("div", "eve", "🌙 " + text));
+    return r;
+  }
+
+  /* 明日預告：當天行程全部結束、焦點跳到隔天第一站時，在那張卡上列出
+     「今晚要先準備的」和「明天其他行程的注意事項」—— 回到住處睡前看一眼就夠。 */
+  function previewBox(p) {
+    var box = el("div", "preview");
+    box.appendChild(el("div", "preview-head",
+      "🌙 " + p.word + "（" + p.label + "）共 " + p.events.length + " 個行程"));
+    var hhmm = function (x) { return x.time_label.slice(0, 5) + "　" + x.title; };
+    var eves = p.events.filter(function (x) { return x.eve; });
+    if (eves.length) {
+      box.appendChild(el("div", "preview-sub", "今晚先準備"));
+      eves.forEach(function (x) {
+        box.appendChild(el("div", "preview-item", hhmm(x) + "：" + x.eve));
+      });
+    }
+    // 第一站自己的 warning 已經在卡片最上面，這裡只列其他行程的
+    var warns = p.events.filter(function (x, i) { return i > 0 && x.warning; });
+    if (warns.length) {
+      box.appendChild(el("div", "preview-sub", p.word + "其他要注意的"));
+      warns.forEach(function (x) {
+        box.appendChild(el("div", "preview-item", "⚠ " + hhmm(x) + "：" + x.warning));
+      });
+    }
+    if (p.events.length > 1) {
+      box.appendChild(el("div", "preview-item dim",
+        "最後一站 " + hhmm(p.events[p.events.length - 1])));
+    }
+    return box;
+  }
+
+  /* 「今天」要用那個事件自己時區的日期，不是旅程時鐘的：伊斯坦堡 00:30 時馬德里還是前一天，
+     用馬德里日期會把兩小時後的紅眼班機叫成「明天」。偏移從它的牆上時間與 UTC 時刻反推。 */
+  function dayKeyIn(e, ts) {
+    var off = Date.parse(e.start_at + ":00Z") / 1000 - e.start_ts;
+    return new Date((ts + off) * 1000).toISOString().slice(0, 10);
+  }
+
   function buildCard(e, cls, focusKind, neighbours, dayLabel) {
     var cat = CAT[e.category] || CAT.sight;
     var card = el("article", "card " + cls);
@@ -129,7 +195,9 @@
     var ht = el("div", "head-text");
     if (cls.indexOf("now") >= 0) {
       ht.appendChild(el("div", "now-badge",
-        focusKind === "now" ? "現在" : focusKind === "next" ? "即將開始" : "行程結束"));
+        focusKind === "now" ? "現在" :
+        focusKind === "next" ? (neighbours.preview ? neighbours.preview.word + "第一站" : "即將開始") :
+        "行程結束"));
     }
     var t = el("div", "card-time");
     t.appendChild(el("span", null, e.time_label));
@@ -154,8 +222,10 @@
       w.appendChild(el("span", null, e.warning));
       foldIn.appendChild(w);
     }
+    if (neighbours.preview) foldIn.appendChild(previewBox(neighbours.preview));
 
     var body = el("div", "card-body");
+    if (e.eve && !neighbours.preview) body.appendChild(eveRow(e.eve));
     if (e.location) {
       var r = el("div", "row");
       r.appendChild(el("div", "row-label", "地點"));
@@ -191,6 +261,8 @@
       rf.appendChild(fl);
       body.appendChild(rf);
     }
+    var hr = hintRow(e);
+    if (hr) body.appendChild(hr);
     if (e.notes) {
       var rn = el("div", "row");
       rn.appendChild(el("div", "row-label", "備註"));
@@ -244,7 +316,17 @@
     var events = state.events;
     var now = nowTs();
     var f = focusInfo(events, now);
-    var key = [state.rev, f.idx, f.kind, state.editing].join("|");
+    // 一天結束、焦點落在下一個行程日的第一站 → 那張卡帶上明日預告
+    var preview = null, nx = events[f.idx];
+    if (f.kind === "next" && f.idx > 0 && events[f.idx - 1].day_key !== nx.day_key) {
+      var today = dayKeyIn(nx, now), tomorrow = dayKeyIn(nx, now + 86400);
+      preview = {
+        word: nx.day_key === today ? "今天" : nx.day_key === tomorrow ? "明天" : "下一天",
+        label: nx.day_label,
+        events: events.filter(function (x) { return x.day_key === nx.day_key; })
+      };
+    }
+    var key = [state.rev, f.idx, f.kind, state.editing, preview ? preview.word : ""].join("|");
     if (key === lastRenderKey && !pendingScrollToNow) return;
     lastRenderKey = key;
 
@@ -276,7 +358,8 @@
       var prev = events[i - 1], next = events[i + 1];
       frag.appendChild(buildCard(e, cls, f.kind, {
         prevSame: prev && prev.start_at === e.start_at && prev.tz === e.tz ? prev : null,
-        nextSame: next && next.start_at === e.start_at && next.tz === e.tz ? next : null
+        nextSame: next && next.start_at === e.start_at && next.tz === e.tz ? next : null,
+        preview: isFocus ? preview : null
       }, dayLabel));
     });
     if (f.kind === "done") {
@@ -800,6 +883,10 @@
     form.appendChild(field("訂位／訂單代碼", "code", ev && ev.code, "text"));
     form.appendChild(field("⚠ 注意事項（顯示在卡片最上方）", "warning", ev && ev.warning, "textarea"));
     form.appendChild(field("備註", "notes", ev && ev.notes, "textarea"));
+    form.appendChild(field("💡 小提示（空一行分段；每段第一行是摘要，其餘點開才看得到）",
+      "hint", ev && ev.hint, "textarea"));
+    form.appendChild(field("🌙 前一晚要準備（前一天晚上的明日預告會列出）",
+      "eve", ev && ev.eve, "textarea"));
     var err = el("div", "err");
     form.appendChild(err);
     var save = el("button", "btn", "儲存");
@@ -810,7 +897,7 @@
       e.preventDefault();
       var d = {};
       ["title", "category", "start_at", "end_at", "tz", "city", "location", "code",
-       "warning", "notes"].forEach(function (k) { d[k] = form.elements[k].value; });
+       "warning", "notes", "hint", "eve"].forEach(function (k) { d[k] = form.elements[k].value; });
       save.disabled = true;
       var p = ev ? api("/api/events/" + ev.id, { method: "PUT", json: d })
                  : api("/api/events", { json: d });

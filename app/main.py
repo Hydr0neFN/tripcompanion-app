@@ -176,6 +176,8 @@ def event_json(row, attachments: list) -> dict:
         "code": row["code"],
         "warning": row["warning"],
         "notes": row["notes"],
+        "hint": row["hint"],
+        "eve": row["eve"],
         "tz": tz,
         "tz_label": tz_badge(tz, TRIP_TZ_NAME),
         "start_at": row["start_at"],
@@ -322,6 +324,9 @@ def api_state(request: Request):
 
 # ---------------------------------------------------------------------- events
 
+OPTIONAL_TEXT = ("hint", "eve")
+
+
 def clean_event(p: dict) -> tuple[dict | None, str]:
     title = (p.get("title") or "").strip()
     if not title:
@@ -340,14 +345,20 @@ def clean_event(p: dict) -> tuple[dict | None, str]:
     cat = (p.get("category") or "sight").strip()
     if cat not in CATEGORIES:
         cat = "sight"
-    return {
+    data = {
         "title": title[:200], "category": cat, "start_at": start, "end_at": end, "tz": tz,
         "city": (p.get("city") or "").strip()[:80],
         "location": (p.get("location") or "").strip()[:200],
         "code": (p.get("code") or "").strip()[:80],
         "warning": (p.get("warning") or "").strip()[:1000],
         "notes": (p.get("notes") or "").strip()[:4000],
-    }, ""
+    }
+    # Added later: only written when the client sends them, so an older client (a phone still
+    # running cached JS) saving an event does not blank them.
+    for k in OPTIONAL_TEXT:
+        if k in p:
+            data[k] = (p.get(k) or "").replace("\r\n", "\n").strip()[:4000]
+    return data, ""
 
 
 @app.post("/api/events")
@@ -362,9 +373,9 @@ def create_event(request: Request, payload: dict = Body(...)):
         pos = con.execute("SELECT COALESCE(MAX(position),0)+1 p FROM events").fetchone()["p"]
         cur = con.execute(
             "INSERT INTO events(title,category,start_at,end_at,tz,city,location,code,"
-            "warning,notes,position) VALUES(:title,:category,:start_at,:end_at,:tz,:city,"
-            ":location,:code,:warning,:notes,:position)",
-            {**data, "position": pos},
+            "warning,notes,hint,eve,position) VALUES(:title,:category,:start_at,:end_at,:tz,"
+            ":city,:location,:code,:warning,:notes,:hint,:eve,:position)",
+            {"hint": "", "eve": "", **data, "position": pos},
         )
         db.bump_rev(con)
         con.commit()
@@ -382,10 +393,9 @@ def update_event(request: Request, event_id: int, payload: dict = Body(...)):
         return jresp({"error": msg}, 400)
     con = db.connect()
     try:
+        sets = ", ".join(f"{k}=:{k}" for k in data)     # keys come from clean_event only
         cur = con.execute(
-            "UPDATE events SET title=:title, category=:category, start_at=:start_at, "
-            "end_at=:end_at, tz=:tz, city=:city, location=:location, code=:code, "
-            "warning=:warning, notes=:notes, updated_at=datetime('now') WHERE id=:id",
+            f"UPDATE events SET {sets}, updated_at=datetime('now') WHERE id=:id",
             {**data, "id": event_id},
         )
         if cur.rowcount == 0:

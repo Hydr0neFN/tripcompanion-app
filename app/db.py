@@ -51,10 +51,22 @@ def connect() -> sqlite3.Connection:
     return con
 
 
+# Columns added after the first deploy. ALTER TABLE keeps existing data; SCHEMA stays the
+# original shape so old databases and new ones converge through the same path.
+ADDED_COLUMNS = {
+    "hint": "TEXT NOT NULL DEFAULT ''",   # collapsed practical tips; one per blank-line block
+    "eve": "TEXT NOT NULL DEFAULT ''",    # what to prepare the night before this event
+}
+
+
 def init() -> None:
     con = connect()
     try:
         con.executescript(SCHEMA)
+        have = {r["name"] for r in con.execute("PRAGMA table_info(events)")}
+        for col, decl in ADDED_COLUMNS.items():
+            if col not in have:
+                con.execute(f"ALTER TABLE events ADD COLUMN {col} {decl}")
         con.commit()
     finally:
         con.close()
