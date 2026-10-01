@@ -258,7 +258,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .hint-flat{font-weight:600}
 .eve{white-space:pre-wrap;font-weight:600;line-height:1.45}
 
-/* ------------------------------------------------------------------ 今晚預備 */
+/* ------------------------------------------------------------------ 今晚準備 */
 .night{margin:.2rem 1rem .5rem;padding:.7rem .85rem .5rem;border-radius:14px;
   background:#122036;border:1px solid #27466e}
 .night.early{background:#3a1218;border-color:#b23a48}
@@ -279,8 +279,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 .night.early .night-alarm{font-size:2rem}
 .night-none,.night-sep{color:var(--dim);font-size:.85rem;font-weight:700;margin-top:.2rem}
 .night-sep{margin-top:.5rem;border-top:1px solid var(--line);padding-top:.5rem}
-.end-of-day{display:block;width:100%;min-height:48px;margin-top:.9rem;background:var(--card2);
-  border:1px solid var(--line);border-radius:12px;color:var(--accent);font:inherit;font-weight:700}
+.end-of-day{margin-top:.9rem;background:var(--card2);border:1px solid var(--line);border-radius:12px;
+  padding:.5rem .8rem .2rem}
+.end-of-day-text{color:var(--dim);font-weight:700}
+.end-of-day-btn{display:block;width:100%;min-height:48px;padding:0;background:none;border:0;
+  color:var(--accent);font:inherit;font-weight:700;text-align:left}
 .later{margin:0 1rem .9rem;background:var(--card2);border:1px solid var(--line);border-radius:12px;
   padding:0 .75rem}
 .later summary{min-height:48px;display:flex;align-items:center;cursor:pointer;font-weight:700;

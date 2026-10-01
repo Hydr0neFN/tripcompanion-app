@@ -223,11 +223,11 @@
   }
 
   /* ---------------------------------------------------------------- 今晚預備
-     一天結束後，下一天的第一站那張卡變成「今晚預備」：
-       區塊 1 今晚就寢前 — 鬧鐘最大最先，其餘是全家共用的打勾清單（night_prep，行程書逐日寫好，
+     一天結束後，下一天的第一站那張卡變成「今晚準備」：
+       區塊 1 今晚睡前 — 鬧鐘最大最先，其餘是全家共用的打勾清單（night_prep，行程書逐日寫好，
                           不從事件文字推算）
        區塊 2 明日首站   — 就是這張卡本身（時間、地點、地圖、警告）
-       區塊 3 明日後續   — 收成一行，點開才列
+       區塊 3 明天還有   — 收成一行，點開才列
      切換時間 flip_at = max(當天最後一個行程結束 + 30 分, 當天當地 19:30)，沒有第二條規則。
      不設 23:00 的硬門檻：跨年夜 23:55 吃葡萄時不能把畫面翻去明天。 */
   function eveningInfo(events, f, now) {
@@ -290,10 +290,10 @@
   function nightBlock(ev, e) {
     var early = parseInt(e.start_at.slice(11, 13), 10) < 6;     // 天亮前出發
     var box = el("section", "night" + (early ? " early" : ""));
-    box.setAttribute("aria-label", "今晚預備");
-    if (early) box.appendChild(el("div", "night-early", "⚠ 今夜特早出發"));
+    box.setAttribute("aria-label", "今晚準備");
+    if (early) box.appendChild(el("div", "night-early", "⚠ " + ev.word + "清晨出發"));
     var hd = el("div", "night-head");
-    hd.appendChild(el("span", null, "🌙 今晚就寢前"));
+    hd.appendChild(el("span", null, "🌙 今晚睡前"));
     var back = el("button", "night-back", "↑ 回到今天");
     back.type = "button";
     back.addEventListener("click", function () { jumpToCard(cardById(ev.prevId)); });
@@ -317,7 +317,7 @@
     if (!ev.rest.length) return null;
     var d = el("details", "later");
     d.open = !!laterOpen[ev.nextId];
-    d.appendChild(el("summary", null, ev.word + "後續 " + ev.rest.length + " 個行程"));
+    d.appendChild(el("summary", null, ev.word + "還有 " + ev.rest.length + " 個行程"));
     ev.rest.forEach(function (x) {
       var b = el("button", "later-row");
       b.type = "button";
@@ -360,7 +360,7 @@
     if (cls.indexOf("now") >= 0) {
       ht.appendChild(el("div", "now-badge",
         focusKind === "now" ? "現在" :
-        focusKind === "next" ? (neighbours.evening ? "今晚預備" : "即將開始") :
+        focusKind === "next" ? (neighbours.evening ? "今晚準備" : "即將開始") :
         "行程結束"));
     }
     var t = el("div", "card-time");
@@ -436,10 +436,14 @@
       body.appendChild(rn);
     }
     if (neighbours.endOfDay) {
-      var eb = el("button", "end-of-day", "今日行程已結束　↓ 看今晚預備");
+      // 狀態與動作分開：同一顆按鈕塞十四個字，大字級下一定破版
+      var eo = el("div", "end-of-day");
+      eo.appendChild(el("div", "end-of-day-text", "今日行程已結束"));
+      var eb = el("button", "end-of-day-btn", "看今晚準備");
       eb.type = "button";
       eb.addEventListener("click", function () { jumpToCard(cardById(neighbours.endOfDay.nextId)); });
-      body.appendChild(eb);
+      eo.appendChild(eb);
+      body.appendChild(eo);
     }
     if (state.editing) body.appendChild(adminRow(e, neighbours));
     foldIn.appendChild(body);
