@@ -94,14 +94,19 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card.now.focusview{box-shadow:0 0 0 1px var(--cat,var(--accent)) inset, 0 12px 34px rgba(0,0,0,.5)}
 
 .card-head{
-  display:flex;gap:.8rem;align-items:flex-start;width:100%;
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:.8rem;
+  align-items:start;width:100%;
   background:none;border:0;text-align:left;padding:.9rem 1rem;
 }
+.card-head > .cat-icon{grid-column:1;grid-row:1}
+.card-head > .head-top{grid-column:2;grid-row:1}
+.card-head > .chev{grid-column:3;grid-row:1}
+.card-head > .head-main{grid-column:1 / -1;grid-row:2;min-width:0;margin-top:.5rem}
 .cat-icon{
-  flex:none;width:2.9rem;height:2.9rem;border-radius:13px;display:grid;place-items:center;
-  font-size:1.55rem;background:color-mix(in srgb,var(--cat) 20%,transparent);
+  flex:none;width:min(2.9rem,56px);height:min(2.9rem,56px);border-radius:13px;display:grid;place-items:center;
+  font-size:min(1.55rem,30px);background:color-mix(in srgb,var(--cat) 20%,transparent);
 }
-.head-text{flex:1;min-width:0}
+.head-top{min-width:0}
 .card-time{
   font-size:1.3rem;font-weight:800;color:var(--cat);font-variant-numeric:tabular-nums;
   display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;

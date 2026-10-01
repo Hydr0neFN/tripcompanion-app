@@ -356,7 +356,7 @@
     head.type = "button";
     head.appendChild(el("div", "cat-icon", cat.icon));
 
-    var ht = el("div", "head-text");
+    var ht = el("div", "head-top");
     if (cls.indexOf("now") >= 0) {
       ht.appendChild(el("div", "now-badge",
         focusKind === "now" ? "現在" :
@@ -368,10 +368,13 @@
     if (e.tz_label) t.appendChild(el("span", "tz-tag", e.tz_label));
     if (e.warning) t.appendChild(el("span", "tz-tag warn-chip", "⚠ 注意"));
     ht.appendChild(t);
-    ht.appendChild(el("div", "card-title", e.title));
-    if (e.city) ht.appendChild(el("div", "card-city", cat.label + "・" + e.city));
     head.appendChild(ht);
     head.appendChild(el("div", "chev", "▾"));
+    // 標題與城市橫跨整個卡寬：放在圖示旁邊只剩約 7 個字一行，地點名會被拆成三行
+    var hm = el("div", "head-main");
+    hm.appendChild(el("div", "card-title", e.title));
+    if (e.city) hm.appendChild(el("div", "card-city", cat.label + "・" + e.city));
+    head.appendChild(hm);
     head.addEventListener("click", function () {
       alignCard(card, true);    // 點哪張就把哪張滑到錨線上展開
     });
