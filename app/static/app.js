@@ -369,6 +369,8 @@
         "行程結束"));
     }
     var t = el("div", "card-time");
+    // 出門時間和開始時間是兩個數字：有值才顯示，不從開始時間推算
+    if (e.leave_at) t.appendChild(el("span", "leave", "出門 " + e.leave_at));
     t.appendChild(el("span", null, e.time_label));
     if (e.tz_label) t.appendChild(el("span", "tz-tag", e.tz_label));
     if (e.warning) t.appendChild(el("span", "tz-tag warn-chip", "⚠ 注意"));
@@ -1063,6 +1065,8 @@
     form.appendChild(field("地點（會用來開 Google 地圖）", "location", ev && ev.location, "text"));
     form.appendChild(field("訂位／訂單代號", "code", ev && ev.code, "text"));
     form.appendChild(field("⚠ 注意事項（顯示在卡片最上方）", "warning", ev && ev.warning, "textarea"));
+    form.appendChild(field("出門時間（HH:MM，該行程所在時區的時間；不確定就留空）", "leave_at",
+      ev && ev.leave_at, "text"));
     form.appendChild(field("備註", "notes", ev && ev.notes, "textarea"));
     form.appendChild(field("💡 小提示（空一行分段；每段第一行是摘要，其餘點開才看得到）",
       "hint", ev && ev.hint, "textarea"));
@@ -1078,7 +1082,7 @@
       e.preventDefault();
       var d = {};
       ["title", "category", "start_at", "end_at", "tz", "city", "location", "code",
-       "warning", "notes", "hint", "eve"].forEach(function (k) { d[k] = form.elements[k].value; });
+       "warning", "notes", "hint", "eve", "leave_at"].forEach(function (k) { d[k] = form.elements[k].value; });
       save.disabled = true;
       var p = ev ? api("/api/events/" + ev.id, { method: "PUT", json: d })
                  : api("/api/events", { json: d });

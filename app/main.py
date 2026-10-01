@@ -180,6 +180,7 @@ def event_json(row, attachments: list) -> dict:
         "notes": row["notes"],
         "hint": row["hint"],
         "eve": row["eve"],
+        "leave_at": row["leave_at"],
         "tz": tz,
         "tz_label": tz_badge(tz, TRIP_TZ_NAME),
         "start_at": row["start_at"],
@@ -342,6 +343,7 @@ def api_state(request: Request):
 # ---------------------------------------------------------------------- events
 
 OPTIONAL_TEXT = ("hint", "eve")
+LEAVE_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 def clean_event(p: dict) -> tuple[dict | None, str]:
@@ -375,6 +377,11 @@ def clean_event(p: dict) -> tuple[dict | None, str]:
     for k in OPTIONAL_TEXT:
         if k in p:
             data[k] = (p.get(k) or "").replace("\r\n", "\n").strip()[:4000]
+    if "leave_at" in p:
+        leave = (p.get("leave_at") or "").strip()
+        if leave and not LEAVE_RE.match(leave):
+            return None, "出門時間格式要是 HH:MM"
+        data["leave_at"] = leave
     return data, ""
 
 
@@ -390,9 +397,9 @@ def create_event(request: Request, payload: dict = Body(...)):
         pos = con.execute("SELECT COALESCE(MAX(position),0)+1 p FROM events").fetchone()["p"]
         cur = con.execute(
             "INSERT INTO events(title,category,start_at,end_at,tz,city,location,code,"
-            "warning,notes,hint,eve,position) VALUES(:title,:category,:start_at,:end_at,:tz,"
-            ":city,:location,:code,:warning,:notes,:hint,:eve,:position)",
-            {"hint": "", "eve": "", **data, "position": pos},
+            "warning,notes,hint,eve,leave_at,position) VALUES(:title,:category,:start_at,:end_at,:tz,"
+            ":city,:location,:code,:warning,:notes,:hint,:eve,:leave_at,:position)",
+            {"hint": "", "eve": "", "leave_at": "", **data, "position": pos},
         )
         db.bump_rev(con)
         con.commit()

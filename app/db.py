@@ -72,6 +72,9 @@ def connect() -> sqlite3.Connection:
 ADDED_COLUMNS = {
     "hint": "TEXT NOT NULL DEFAULT ''",   # collapsed practical tips; one per blank-line block
     "eve": "TEXT NOT NULL DEFAULT ''",    # what to prepare the night before this event
+    # 'HH:MM' wall-clock in the event's OWN tz (same tz as start_at): when to walk out the door.
+    # Not the start time, and never derived from it. '' = unknown, nothing is shown.
+    "leave_at": "TEXT NOT NULL DEFAULT ''",
 }
 
 
