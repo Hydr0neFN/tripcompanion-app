@@ -966,8 +966,11 @@
       row.title = g.full;
       row.setAttribute("aria-label", g.full);
       row.dataset.day = g.key;
-      row.appendChild(el("span", "rail-d", g.label));
-      if (g.key === nowKey) { row.classList.add("nowday"); passed = false; }
+      var isNow = g.key === nowKey;
+      // 「現在」那一格不寫日期、只寫「現」：金色凸舌＋一個字，餘光一眼就是現在，不用讀數字
+      row.appendChild(el("span", "rail-d", isNow ? "現" : g.label));
+      if (isNow) row.setAttribute("aria-label", "現在：" + g.full);
+      if (isNow) { row.classList.add("nowday"); passed = false; }
       else if (passed) row.classList.add("elapsed");
       row.addEventListener("click", function () { jumpToCard(cardById(g.first)); });
       $rail.appendChild(row);
