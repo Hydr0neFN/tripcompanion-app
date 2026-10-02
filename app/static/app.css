@@ -183,7 +183,9 @@ button{font:inherit;color:inherit;cursor:pointer}
   color:var(--accent);font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;
   word-break:break-all;text-align:center;
 }
-.notes{white-space:pre-wrap;color:var(--dim);font-size:.98rem;margin-top:.25rem;line-height:1.5}
+/* 備註、小提示、前一晚要準備：同一個字級（1rem）、同一個行高（1.5）、同一條左緣；
+   差別只剩顏色與粗細（標題行白＋粗、內文灰），不再靠框線和縮排區分 */
+.notes{white-space:pre-wrap;color:var(--dim);font-size:1rem;margin-top:.25rem;line-height:1.5}
 .notes-fold{position:relative}
 .notes-fold .note-item{margin-top:.35rem}
 .notes-fold .note-item:first-child{margin-top:.25rem}
@@ -274,16 +276,15 @@ button{font:inherit;color:inherit;cursor:pointer}
 }
 
 /* ------------------------------------------------------------------ hints / preview */
-.hint{margin-top:.35rem;background:var(--card2);border:1px solid var(--line);border-radius:12px;
-  padding:.55rem .75rem}
+.hint{margin-top:.1rem;background:none;border:0;padding:.3rem 0;font-size:1rem;line-height:1.5}
 .hint:first-of-type{margin-top:0}
 .hint summary{cursor:pointer;font-weight:600;list-style:none;-webkit-tap-highlight-color:transparent}
 .hint summary::-webkit-details-marker{display:none}
 .hint summary::after{content:" ▸";color:var(--dim)}
 .hint[open] summary::after{content:" ▾"}
-.hint-body{margin-top:.45rem;color:var(--dim);white-space:pre-wrap;line-height:1.5}
+.hint-body{margin-top:.15rem;color:var(--dim);white-space:pre-wrap;line-height:1.5}
 .hint-flat{font-weight:600}
-.eve{white-space:pre-wrap;font-weight:600;line-height:1.45}
+.eve{white-space:pre-wrap;font-weight:600;line-height:1.5;font-size:1rem}
 
 /* ------------------------------------------------------------------ 今晚準備 */
 .night{margin:.2rem var(--pad) .5rem;padding:.7rem var(--pad-s) .5rem;border-radius:14px;
