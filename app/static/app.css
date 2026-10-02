@@ -154,11 +154,13 @@ button{font:inherit;color:inherit;cursor:pointer}
 .row:first-child{margin-top:0}
 .row-label{font-size:.78rem;color:var(--dim2);letter-spacing:.1em;font-weight:700}
 .maplink{
-  display:flex;align-items:center;gap:.6rem;margin-top:.25rem;
+  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;margin-top:.25rem;
   background:var(--card2);border:1px solid var(--line);border-radius:12px;
   padding:.72rem .8rem;color:var(--fg);text-decoration:none;font-size:1rem;font-weight:600;
 }
-.maplink .arrow{margin-left:auto;color:var(--accent);font-size:.85rem;font-weight:700}
+/* 地名長時，「在地圖開啟 ›」整組掉到下一行靠右，不再被擠成一欄寬、一行一個字 */
+.maplink .loc{flex:1 1 0;min-width:6rem;overflow-wrap:anywhere}
+.maplink .arrow{margin-left:auto;flex:none;white-space:nowrap;color:var(--accent);font-size:.85rem;font-weight:700}
 .code-box{
   margin-top:.25rem;background:#0d1420;border:1px dashed var(--accent);border-radius:12px;
   padding:.6rem .8rem;font-size:1.5rem;font-weight:800;letter-spacing:.18em;

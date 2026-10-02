@@ -414,7 +414,7 @@
       a.target = "_blank";
       a.rel = "noopener";
       a.appendChild(el("span", null, "📍"));
-      a.appendChild(el("span", null, e.location));
+      a.appendChild(el("span", "loc", e.location));
       a.appendChild(el("span", "arrow", "在地圖開啟 ›"));
       r.appendChild(a);
       body.appendChild(r);
