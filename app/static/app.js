@@ -747,7 +747,7 @@
     focusEventId = parseInt(card.dataset.id, 10);
     card.classList.add("focusview");
     var ev = eventById(focusEventId);
-    if (ev) $dayNow.textContent = ev.day_label + (ev.city ? "　" + ev.city : "");
+    if (ev) $dayNow.textContent = ev.day_label + (ev.city ? " " + ev.city : "");
     updateFab();
     updateRail();
     return true;
@@ -1361,14 +1361,17 @@
   /* 跟隨系統字級（iOS 動態字型）。網頁只有用 font:-apple-system-body 才會吃到系統設定，
      寫死 px 的根字級會把「字體大小」那條滑桿整個吃掉 —— 家裡四支手機從最小到特大都有。
      做法：用一個不顯示的探針量出系統 body 字級（預設 Large = 17px），按比例換成根字級
-     （17px ↔ 18px，維持原本的版面），其餘全部是 rem，會跟著長。回到前景、轉向時重量一次。
+     （17px ↔ 18px，維持原本的版面），其餘全部是 rem，會跟著長。往上長的過程中放大倍率逐漸收回 1：
+     到 iOS 最大那一檔（23px）就等於系統字級，網頁的字不比使用者其他 App 的字大。回到前景、轉向時重量一次。
      不支援這個關鍵字的瀏覽器（桌機）整段略過，維持 CSS 裡的 18px。 */
   var curRoot = 0, textProbe = null;
   function syncTextSize(rerender) {
     if (!textProbe) return;
     var px = parseFloat(getComputedStyle(textProbe).fontSize);
     if (!(px > 0)) return;
-    var root = Math.max(14, Math.min(px * 18 / 17, 44));
+    // 17px 以下維持 ×18/17；17→23px 之間把多出來的 1px 線性收掉，23px 以上就是系統字級本身
+    var root = px <= 17 ? px * 18 / 17 : px + Math.max(0, (23 - px) / 6);
+    root = Math.max(14, Math.min(root, 44));
     if (Math.abs(root - curRoot) < 0.1) return;
     curRoot = root;
     document.documentElement.style.fontSize = root + "px";

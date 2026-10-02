@@ -14,6 +14,9 @@
   font-size:18px;
   /* 日期軌寬度：跟字級長，但封頂 —— 它佔的是卡片的欄寬 */
   --rail-w:min(2.3rem,48px);
+  /* 左右留白：像「設定」App 那樣只留固定 px，不跟字級長 —— 最大字級下 1rem 會變成 24pt，
+     白白吃掉文字欄寬（真機實測：設定頁約 17pt，我們約 29pt） */
+  --pad:min(1rem,16px); --pad-s:min(.85rem,14px);
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* 作者樣式的 display 會蓋掉 UA 的 [hidden]{display:none} — 這裡把它釘回來 */
@@ -35,26 +38,26 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 /* ------------------------------------------------------------------ topbar */
 .topbar{
-  position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:.75rem;
-  padding:.7rem 1rem; padding-top:calc(.7rem + env(safe-area-inset-top));
+  position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:min(.75rem,12px);
+  padding:min(.7rem,10px) var(--pad); padding-top:calc(min(.7rem,10px) + env(safe-area-inset-top));
   background:rgba(11,15,22,.94); backdrop-filter:blur(8px);
   border-bottom:1px solid var(--line);
 }
 .topbar-main{flex:1;min-width:0}
 /* 兩行都強制單行：頁首一換行就變高，snapTop() 跟著漂，
    IO 的錨線帶和對齊用的線就不再是同一條 → 焦點會判到隔壁那張。 */
-.trip-title,.trip-clock{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-title,.trip-clock{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
 .trip-title{font-size:min(1.1rem,24px);font-weight:800;letter-spacing:.03em}
 .trip-clock{font-size:min(.85rem,18px);color:var(--dim);font-variant-numeric:tabular-nums}
 .edit-toggle{
   background:var(--card2);border:1px solid var(--line);border-radius:999px;
-  padding:.5rem 1.1rem;font-size:min(.95rem,20px);font-weight:600;color:var(--dim);
+  padding:min(.5rem,8px) min(1.1rem,18px);font-size:min(.95rem,20px);font-weight:600;color:var(--dim);
 }
 .edit-toggle.on{background:var(--accent);border-color:var(--accent);color:#04121f}
 
 /* ---------------------------------------------------------------- timeline */
 /* 上下留白：第一張要能停到錨線，最後一張也要 */
-.timeline{padding:50dvh calc(.85rem + var(--rail-w)) calc(100dvh - 10rem) .85rem;
+.timeline{padding:50dvh calc(var(--pad-s) + var(--rail-w)) calc(100dvh - 10rem) var(--pad-s);
   max-width:640px;margin:0 auto}
 .loading{color:var(--dim);text-align:center;padding:3rem 0}
 
@@ -62,7 +65,7 @@ button{font:inherit;color:inherit;cursor:pointer}
    沒有任何「沒有卡片」的空隙 —— 吸附判定不會在日期交界翻面。 */
 .day-tag{
   display:flex;align-items:center;gap:.6rem;
-  padding:.6rem 1rem .1rem;
+  padding:.6rem var(--pad) .1rem;
   color:var(--dim);font-size:.92rem;font-weight:800;letter-spacing:.08em;
 }
 .day-tag::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -96,7 +99,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card-head{
   display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:.8rem;
   align-items:start;width:100%;
-  background:none;border:0;text-align:left;padding:.9rem 1rem;
+  background:none;border:0;text-align:left;padding:.9rem var(--pad);
 }
 .card-head > .cat-icon{grid-column:1;grid-row:1}
 .card-head > .head-top{grid-column:2;grid-row:1}
@@ -144,26 +147,26 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 .warn{
   background:var(--warn-bg);color:var(--warn-fg);
-  border:1px solid var(--warn-line);border-radius:12px;padding:.6rem .7rem;
-  margin:0 1rem .85rem;font-size:1rem;font-weight:600;line-height:1.5;
+  border:1px solid var(--warn-line);border-radius:12px;padding:.6rem min(.7rem,12px);
+  margin:0 var(--pad) .85rem;font-size:1rem;font-weight:600;line-height:1.5;
 }
 .card.settled .warn-chip{display:none}
 
-.card-body{padding:0 1rem 1rem}
+.card-body{padding:0 var(--pad) 1rem}
 .row{margin-top:.7rem}
 .row:first-child{margin-top:0}
 .row-label{font-size:.78rem;color:var(--dim2);letter-spacing:.1em;font-weight:700}
 .maplink{
   display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;margin-top:.25rem;
   background:var(--card2);border:1px solid var(--line);border-radius:12px;
-  padding:.72rem .8rem;color:var(--fg);text-decoration:none;font-size:1rem;font-weight:600;
+  padding:.72rem min(.8rem,13px);color:var(--fg);text-decoration:none;font-size:1rem;font-weight:600;
 }
 /* 地名長時，「在地圖開啟 ›」整組掉到下一行靠右，不再被擠成一欄寬、一行一個字 */
 .maplink .loc{flex:1 1 0;min-width:6rem;overflow-wrap:anywhere}
 .maplink .arrow{margin-left:auto;flex:none;white-space:nowrap;color:var(--accent);font-size:.85rem;font-weight:700}
 .code-box{
   margin-top:.25rem;background:#0d1420;border:1px dashed var(--accent);border-radius:12px;
-  padding:.6rem .8rem;font-size:1.5rem;font-weight:800;letter-spacing:.18em;
+  padding:.6rem min(.8rem,13px);font-size:1.5rem;font-weight:800;letter-spacing:.18em;
   color:var(--accent);font-family:ui-monospace,"SFMono-Regular",Menlo,monospace;
   word-break:break-all;text-align:center;
 }
@@ -263,7 +266,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .eve{white-space:pre-wrap;font-weight:600;line-height:1.45}
 
 /* ------------------------------------------------------------------ 今晚準備 */
-.night{margin:.2rem 1rem .5rem;padding:.7rem .85rem .5rem;border-radius:14px;
+.night{margin:.2rem var(--pad) .5rem;padding:.7rem var(--pad-s) .5rem;border-radius:14px;
   background:#122036;border:1px solid #27466e}
 .night.early{background:#3a1218;border-color:#b23a48}
 .night-early{color:#ff9aa5;font-weight:800;letter-spacing:.04em}
@@ -288,8 +291,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .end-of-day-text{color:var(--dim);font-weight:700}
 .end-of-day-btn{display:block;width:100%;min-height:48px;padding:0;background:none;border:0;
   color:var(--accent);font:inherit;font-weight:700;text-align:left}
-.later{margin:0 1rem .9rem;background:var(--card2);border:1px solid var(--line);border-radius:12px;
-  padding:0 .75rem}
+.later{margin:0 var(--pad) .9rem;background:var(--card2);border:1px solid var(--line);border-radius:12px;
+  padding:0 min(.75rem,12px)}
 .later summary{min-height:48px;display:flex;align-items:center;cursor:pointer;font-weight:700;
   list-style:none;-webkit-tap-highlight-color:transparent}
 .later summary::-webkit-details-marker{display:none}
