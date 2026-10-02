@@ -28,6 +28,8 @@ html,body{margin:0;padding:0}
    感覺就是「一放手就鎖死」。proximity 只在自然落點本來就靠近吸附點時才吸，
    甩出去就讓它一路滑完。停在兩張之間的收尾由 settle() 平滑滑進錨線負責。 */
 html{scroll-snap-type:y proximity}
+/* 讀長卡片中（app.js readingInside）：不要讓瀏覽器自己的吸附把畫面拉回卡頂 */
+html.reading .card{scroll-snap-align:none}
 body{
   background:var(--bg); color:var(--fg);
   font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,sans-serif;

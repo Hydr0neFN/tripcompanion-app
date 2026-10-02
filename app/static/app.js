@@ -813,8 +813,20 @@
      （曾經有個 nearestCard() 在做這件事，那是 proximity 時代的遺留 —— 當時瀏覽器
      可能停在兩張之間才需要「最近的」；改回 mandatory 之後，停下來一定是某張卡的
      頂端貼在錨線上，IO 給的就是正確答案。） */
+  /* 正在讀一張比螢幕還高的卡（大字級下很常見）：錨線落在卡片裡面、卡頂已經在錨線上方一段、
+     底還在錨線下方一段 → 使用者是在卡片裡面往下讀，不是停在兩張之間。這時不能把卡滑回頂端，
+     也不能改選別張，否則「往下滑一點就被拉回卡頂」，下半張永遠看不到。
+     卡頂離錨線不到 24px 仍然照舊滑進去對齊（那是停在兩張之間）；卡底快滑過錨線（剩 120px）也照舊，
+     由下一張接手。 */
+  function readingInside(card) {
+    if (!card || card !== expandedCard) return false;
+    var line = snapTop(), r = card.getBoundingClientRect();
+    return r.height > window.innerHeight - line - 8 && r.top < line - 24 && r.bottom > line + 120;
+  }
   function settle() {
     if (swapping || touching || gliding) return;
+    if (readingInside(focusCard)) { document.documentElement.classList.add("reading"); return; }
+    document.documentElement.classList.remove("reading");
     var focus = lockTarget();
     if (!focus) return;
     var open = $timeline.querySelectorAll(".card.settled");
