@@ -161,8 +161,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 .warn{
   background:var(--warn-bg);color:var(--warn-fg);
-  border:1px solid var(--warn-line);border-radius:12px;padding:.6rem var(--box-pad);
-  margin:0 calc(var(--pad) - var(--box-pad)) .85rem;font-size:1rem;font-weight:600;line-height:1.5;
+  border:1px solid var(--warn-line);border-radius:10px;padding:.4rem var(--box-pad);
+  margin:0 calc(var(--pad) - var(--box-pad)) .5rem;font-size:1rem;font-weight:600;line-height:1.45;
   overflow-wrap:anywhere;
 }
 .card.settled .warn-chip{display:none}
@@ -172,11 +172,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 .row:first-child{margin-top:0}
 .row-label{font-size:.78rem;color:var(--dim2);letter-spacing:.1em;font-weight:700}
 .maplink{
-  /* 地圖列不再有框：和備註、小提示一樣是「文字直接放在卡片上」，文字和圖釘在同一條左緣；
-     44px 高是點擊區，「看地圖 ›」是藍色，靠它辨認可以點 */
-  display:flex;flex-wrap:nowrap;align-items:center;gap:.5rem;margin-top:0;min-height:44px;
-  background:none;border:0;border-radius:0;
-  padding:.35rem 0;color:var(--fg);text-decoration:none;font-size:1rem;font-weight:600;
+  /* 有框的只有兩種：警告（琥珀）和地圖列（灰藍）。備註、小提示、前一晚沒有框。
+     框往外凸出 --box-pad，框裡的字和框外的字在同一條左緣上 */
+  display:flex;flex-wrap:nowrap;align-items:center;gap:.45rem;margin:0 calc(var(--box-pad) * -1);
+  background:var(--card2);border:1px solid var(--line);border-radius:10px;
+  padding:.4rem var(--box-pad);color:var(--fg);text-decoration:none;font-size:.9rem;font-weight:600;
 }
 /* 地圖那一行永遠只占一行：地名放不下就用「…」，連結不換行（完整地名在地圖裡看） */
 .maplink .loc{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
