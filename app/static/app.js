@@ -294,7 +294,11 @@
           lastRenderKey = lastRenderKey.replace(/^[^|]*/, function () { return String(r.rev); });
         }
       })
-      .catch(function (x) { item.is_done = !want; paintPrep(btn, item); toast(x.message); });
+      .catch(function (x) {
+        item.is_done = !want; paintPrep(btn, item);
+        // 沒有 status ＝ 根本沒連上伺服器（瀏覽器丟的是英文原文：Failed to fetch／Load failed），給中文說明
+        toast(x && x.status ? x.message : "沒網路，沒存到。有訊號再勾一次");
+      });
   }
   function prepRow(item, cls, label, sub) {
     var b = el("button", "night-item" + (cls ? " " + cls : ""));
