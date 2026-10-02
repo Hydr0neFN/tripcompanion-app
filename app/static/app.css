@@ -18,6 +18,7 @@
   /* 左右留白：像「設定」App 那樣只留固定 px，不跟字級長 —— 最大字級下 1rem 會變成 24pt，
      白白吃掉文字欄寬（真機實測：設定頁約 17pt，我們約 29pt） */
   --pad:min(1rem,16px); --pad-s:min(.85rem,14px);
+  --box-pad:10px;      /* 有底色的框（警告）往外凸出這麼多，讓框裡的字和框外的字在同一條左緣上 */
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 /* 作者樣式的 display 會蓋掉 UA 的 [hidden]{display:none} — 這裡把它釘回來 */
@@ -160,8 +161,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 
 .warn{
   background:var(--warn-bg);color:var(--warn-fg);
-  border:1px solid var(--warn-line);border-radius:12px;padding:.6rem min(.7rem,12px);
-  margin:0 var(--pad) .85rem;font-size:1rem;font-weight:600;line-height:1.5;
+  border:1px solid var(--warn-line);border-radius:12px;padding:.6rem var(--box-pad);
+  margin:0 calc(var(--pad) - var(--box-pad)) .85rem;font-size:1rem;font-weight:600;line-height:1.5;
+  overflow-wrap:anywhere;
 }
 .card.settled .warn-chip{display:none}
 
@@ -170,9 +172,11 @@ button{font:inherit;color:inherit;cursor:pointer}
 .row:first-child{margin-top:0}
 .row-label{font-size:.78rem;color:var(--dim2);letter-spacing:.1em;font-weight:700}
 .maplink{
-  display:flex;flex-wrap:nowrap;align-items:center;gap:.45rem;margin-top:0;
-  background:var(--card2);border:1px solid var(--line);border-radius:10px;
-  padding:.4rem min(.65rem,11px);color:var(--fg);text-decoration:none;font-size:.85rem;font-weight:600;
+  /* 地圖列不再有框：和備註、小提示一樣是「文字直接放在卡片上」，文字和圖釘在同一條左緣；
+     44px 高是點擊區，「看地圖 ›」是藍色，靠它辨認可以點 */
+  display:flex;flex-wrap:nowrap;align-items:center;gap:.5rem;margin-top:0;min-height:44px;
+  background:none;border:0;border-radius:0;
+  padding:.35rem 0;color:var(--fg);text-decoration:none;font-size:1rem;font-weight:600;
 }
 /* 地圖那一行永遠只占一行：地名放不下就用「…」，連結不換行（完整地名在地圖裡看） */
 .maplink .loc{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -185,7 +189,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 }
 /* 備註、小提示、前一晚要準備：同一個字級（1rem）、同一個行高（1.5）、同一條左緣；
    差別只剩顏色與粗細（標題行白＋粗、內文灰），不再靠框線和縮排區分 */
-.notes{white-space:pre-wrap;color:var(--dim);font-size:1rem;margin-top:.25rem;line-height:1.5}
+.notes{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dim);font-size:1rem;margin-top:.25rem;line-height:1.5}
 .notes-fold{position:relative}
 .notes-fold .note-item{margin-top:.35rem}
 .notes-fold .note-item:first-child{margin-top:.25rem}
@@ -282,9 +286,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .hint summary::-webkit-details-marker{display:none}
 .hint summary::after{content:" ▸";color:var(--dim)}
 .hint[open] summary::after{content:" ▾"}
-.hint-body{margin-top:.15rem;color:var(--dim);white-space:pre-wrap;line-height:1.5}
+.hint-body{margin-top:.15rem;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
 .hint-flat{font-weight:600}
-.eve{white-space:pre-wrap;font-weight:600;line-height:1.5;font-size:1rem}
+.eve{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:600;line-height:1.5;font-size:1rem}
 
 /* ------------------------------------------------------------------ 今晚準備 */
 .night{margin:.2rem var(--pad) .5rem;padding:.7rem var(--pad-s) .5rem;border-radius:14px;
