@@ -17,12 +17,13 @@
 
   var state = { events: [], nightPrep: [], rev: -1, editing: false, nowTs: 0, fetchedAt: 0,
                 clockLabel: "", tzChoices: [], tripTz: "" };
-  var PEEK = 64;                // 焦點卡上方留給前一張露臉的高度（px）
+  var PEEK = 8;                 // 焦點卡離頂欄的距離（px）。原本是 64，讓前一張露臉；那條被壓暗的殘影擋視線，已拿掉
   var focusEventId = null;      // 停在錨線上的那張 — 只換高亮，不動版面
   var expandedEventId = null;   // 真正展開內容的那張 — 只在捲動停止時才換
   var focusCard = null, expandedCard = null;
   var io = null, settleTimer = null;
   var swapping = false;         // settle() 進行中：擋掉自己造成的回呼
+  var TOP_WAIT = 400;           // 捲到頂後靜止多久才回到「現在」（ms）
   var touching = false;         // 手指在螢幕上：手勢優先，程式一律讓位
   var gliding = false, glideTimer = null;   // 停下後輕輕滑進錨線的那一段
   var jumping = false, jumpTimer = null;    // 跳轉飛行中：誰都不准插手
@@ -836,7 +837,7 @@
     return r.height > window.innerHeight - line - 8 && r.top < line - 24 && r.bottom > line + 120;
   }
   function settle() {
-    if (swapping || touching || gliding) return;
+    if (swapping || touching || gliding || topPending) return;
     if (readingInside(focusCard)) { document.documentElement.classList.add("reading"); return; }
     document.documentElement.classList.remove("reading");
     var focus = lockTarget();
@@ -980,7 +981,25 @@
       label = pad(d.getUTCMonth() + 1) + "/" + pad(d.getUTCDate()) + " " +
               pad(d.getUTCHours()) + ":" + pad(d.getUTCMinutes());
     }
-    $clock.textContent = (state.clockLabel ? state.clockLabel + " " : "") + label +
+    var clockLabel = state.clockLabel;
+    /* 人現在在哪裡就顯示哪裡的時間：「現在」那個行程（或空檔時，剛結束的那個）的時區不是旅程時區，
+       就換成它的當地時間，標籤照樣寫明（vault 已有「當地時間為主」的決定）。 */
+    if (f) {
+      var at = state.events[f.kind === "next" && f.idx > 0 ? f.idx - 1 : f.idx];
+      if (at && at.tz && at.tz !== state.tripTz) {
+        var nm = "";
+        state.tzChoices.forEach(function (c) { if (c.tz === at.tz) nm = c.label; });
+        try {
+          var parts = {};
+          new Intl.DateTimeFormat("en-GB", { timeZone: at.tz, month: "2-digit", day: "2-digit",
+            hour: "2-digit", minute: "2-digit", hour12: false })
+            .formatToParts(new Date(n * 1000)).forEach(function (p) { parts[p.type] = p.value; });
+          label = parts.month + "/" + parts.day + " " + (parts.hour === "24" ? "00" : parts.hour) + ":" + parts.minute;
+          clockLabel = nm ? nm + "時間" : clockLabel;
+        } catch (err) { /* 不支援就維持旅程時區 */ }
+      }
+    }
+    $clock.textContent = (clockLabel ? clockLabel + " " : "") + label +
                          (DEBUG_NOW ? "（測試模式）" : "");
   }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
@@ -1325,6 +1344,8 @@
     clearTimeout(glideTimer);
     clearTimeout(settleTimer);
     clearTimeout(releaseTimer);   // 跳轉的延後釋放也要作廢，否則會晚一步把 swapping 打開
+    clearTimeout(topTimer);       // 回到現在的等待期間碰螢幕 → 取消
+    topPending = false;
     if (jumping) document.documentElement.style.scrollSnapType = "";
     jumping = false;
     gliding = false;
@@ -1335,9 +1356,26 @@
     yieldToTouch();
   }, { passive: true });
   function endTouch() {
+    lastTouchAt = Date.now();
     if (!touching) return;
     touching = false;
     scheduleSettle();          // 手放開才開始等「真的停下來」
+  }
+  /* 點螢幕頂端（iOS 的狀態列）會把頁面瞬間捲到最上面，沒有任何手指在頁面上。
+     捲到頂、而且最近 2.5 秒沒有碰過螢幕、而且現在看的不是「現在」→ 靜止 TOP_WAIT（400ms）後回到現在。
+     使用者自己用手指一路捲上來的（有慣性、有觸控）不算；等的這段時間內再碰螢幕就取消。 */
+  var lastTouchAt = 0, topTimer = null, topPending = false;
+  function checkTop() {
+    if (topPending || window.scrollY > 2 || touching || jumping || Date.now() - lastTouchAt < 2500) return;
+    var nowCard = $timeline.querySelector(".card.now");
+    if (!nowCard || nowCard === focusCard) return;
+    /* 等候期間 settle() 必須讓開 —— 否則它會在 6ms 內把畫面滑回剛才的卡（實測），回到現在就永遠不會發生。 */
+    topPending = true;
+    clearTimeout(settleTimer);
+    topTimer = setTimeout(function () {
+      topPending = false;
+      if (window.scrollY <= 2 && !touching && !jumping) goToNow(); else scheduleSettle();
+    }, TOP_WAIT);
   }
   window.addEventListener("touchend", endTouch, { passive: true });
   window.addEventListener("touchcancel", endTouch, { passive: true });
@@ -1367,6 +1405,7 @@
     lastScrollAt = Date.now();
     reobserveIfViewportChanged();
     scheduleSettle();
+    checkTop();
   }, { passive: true });
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", function () {

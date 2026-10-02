@@ -14,6 +14,7 @@
   font-size:18px;
   /* 日期軌寬度：跟字級長，但封頂 —— 它佔的是卡片的欄寬 */
   --rail-w:min(2.3rem,48px);
+  --now-gold:#f2b84b;   /* 「今天」專用；App 其他地方沒有用金色表示別的意思 */
   /* 左右留白：像「設定」App 那樣只留固定 px，不跟字級長 —— 最大字級下 1rem 會變成 24pt，
      白白吃掉文字欄寬（真機實測：設定頁約 17pt，我們約 29pt） */
   --pad:min(1rem,16px); --pad-s:min(.85rem,14px);
@@ -42,7 +43,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .topbar{
   position:sticky; top:0; z-index:30; display:flex; align-items:center; gap:min(.75rem,12px);
   padding:min(.7rem,10px) var(--pad); padding-top:calc(min(.7rem,10px) + env(safe-area-inset-top));
-  background:rgba(11,15,22,.94); backdrop-filter:blur(8px);
+  background:var(--bg);   /* 不透明：下面捲過去的卡不要在頂欄後面透出一層灰 */
   border-bottom:1px solid var(--line);
 }
 .topbar-main{flex:1;min-width:0}
@@ -227,13 +228,18 @@ button{font:inherit;color:inherit;cursor:pointer}
 .rail-row.newmonth{border-top:1px solid var(--line)}
 /* 已經過完的日子 → 這就是「整趟走到哪」的進度 */
 .rail-row.elapsed{background:rgba(77,163,255,.14); color:var(--dim)}
-/* 今天 */
-.rail-row.nowday{color:var(--accent)}
-.rail-row.nowday::after{
-  content:""; position:absolute; right:.18rem; top:50%; transform:translateY(-50%);
-  width:.32rem; height:.32rem; border-radius:50%; background:var(--accent);
-  box-shadow:0 0 0 2px rgba(77,163,255,.25);
+/* 今天：金色數字 + 一塊從日期軌左側凸出去的金色小舌（進到卡片和軌道之間那條留白裡）。
+   形狀和顏色兩個通道，餘光也抓得到；「回到現在」按鈕拿掉後，這是唯一看得見的退路。
+   三種狀態要分得出來：只是今天（金字＋凸舌）、只是在看（白底＋藍邊，原本的）、
+   今天又正在看（整格實心金底、深色字）—— 後者一眼就知道已經回到現在。 */
+.rail-row.nowday{color:var(--now-gold);font-weight:800}
+.rail-row.nowday::before{
+  content:""; position:absolute; left:-10px; top:14%; bottom:14%; width:11px;
+  background:var(--now-gold); border-radius:7px 0 0 7px;
+  box-shadow:-1px 0 6px rgba(242,184,75,.45);
 }
+.rail-row.nowday.at{background:var(--now-gold); color:#1b1205; box-shadow:none}
+.rail-row.nowday.at::before{top:0; bottom:0; border-radius:8px 0 0 8px}
 /* 正在看的那一天 */
 .rail-row.at{
   color:var(--fg); background:rgba(255,255,255,.1);
@@ -241,6 +247,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 }
 
 /* -------------------------------------------------------------------- FAB */
+/* 「回到現在」改成點螢幕頂端（見 app.js checkTop）；按鈕隱藏，程式保留，要恢復只要刪掉 display:none */
+.now-fab{display:none!important}
 .now-fab{
   position:fixed;left:50%;z-index:40;
   bottom:calc(1.2rem + env(safe-area-inset-bottom));
