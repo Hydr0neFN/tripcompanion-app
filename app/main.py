@@ -491,6 +491,18 @@ def reorder_events(request: Request, payload: dict = Body(...)):
 TIME_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
 
 
+def as_bool(v):
+    """True/False for real booleans, 0/1, and the strings 'true'/'false'/'1'/'0'; None for anything else.
+    Plain truthiness read the string "false" as True."""
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, int) and v in (0, 1):
+        return bool(v)
+    if isinstance(v, str) and v.strip().lower() in ("true", "false", "1", "0"):
+        return v.strip().lower() in ("true", "1")
+    return None
+
+
 def prep_json(r) -> dict:
     return {
         "id": r["id"], "target_date": r["target_date"], "title": r["title"],
@@ -547,7 +559,7 @@ def create_prep(request: Request, payload: dict = Body(...)):
         cur = con.execute(
             "INSERT INTO night_prep(target_date,title,alarm_time,due_time,is_done,linked_event_id,"
             "position) VALUES(:target_date,:title,:alarm_time,:due_time,:is_done,:linked_event_id,"
-            ":position)", {**data, "is_done": 1 if payload.get("is_done") else 0, "position": pos})
+            ":position)", {**data, "is_done": 1 if as_bool(payload.get("is_done")) else 0, "position": pos})
         db.bump_rev(con)
         con.commit()
         return jresp({"id": cur.lastrowid, "rev": db.get_rev(con)})
@@ -563,7 +575,7 @@ def update_prep(request: Request, prep_id: int, payload: dict = Body(...)):
     if not data:
         return jresp({"error": msg}, 400)
     if "is_done" in payload:                 # omitted -> keep, like hint/eve on events
-        data["is_done"] = 1 if payload.get("is_done") else 0
+        data["is_done"] = 1 if as_bool(payload.get("is_done")) else 0
     con = db.connect()
     try:
         if data["linked_event_id"] is not None and not con.execute(
@@ -585,10 +597,13 @@ def update_prep(request: Request, prep_id: int, payload: dict = Body(...)):
 def set_prep_done(request: Request, prep_id: int, payload: dict = Body(...)):
     if (err := need_editor(request)):
         return err
+    done = as_bool(payload.get("done"))
+    if done is None:
+        return jresp({"error": "done 要是 true 或 false"}, 400)
     con = db.connect()
     try:
         cur = con.execute("UPDATE night_prep SET is_done=?, updated_at=datetime('now') WHERE id=?",
-                          (1 if payload.get("done") else 0, prep_id))
+                          (1 if done else 0, prep_id))
         if cur.rowcount == 0:
             return jresp({"error": "找不到這個項目"}, 404)
         db.bump_rev(con)

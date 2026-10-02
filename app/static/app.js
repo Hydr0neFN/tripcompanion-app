@@ -246,7 +246,7 @@
      不設 23:00 的硬門檻：跨年夜 23:55 吃葡萄時不能把畫面翻去明天。 */
   function eveningInfo(events, f, now) {
     if (f.kind !== "next" || f.idx < 1) return null;
-    var nx = events[f.idx], prev = events[f.idx - 1];
+    var nx = events[f.idx], prev = events[f.idx - 1], alarmMax = "";
     if (prev.day_key === nx.day_key) return null;
     var dayEnd = 0;
     events.forEach(function (x) {
@@ -258,12 +258,22 @@
     var off = Date.parse(prev.start_at + ":00Z") / 1000 - prev.start_ts;
     var floor = Date.parse(prev.day_key + "T19:30:00Z") / 1000 - off;
     if (now < Math.max(dayEnd + 1800, floor)) return null;
+    var items = state.nightPrep.filter(function (p) { return p.target_date === prev.day_key; });
+    /* 區塊在它自己的鬧鐘時間結束 —— 它的目的是「今晚準備什麼、幾點起床」，最後一刻就是起床那一刻。
+       不是午夜：1/3 的 03:00 接駁，02:15 的鬧鐘必須活過午夜。
+       終點 = 那晚最晚的 alarm_time；沒有就用明天第一個行程的 leave_at；再沒有就用它的 start_at。
+       時間都是明天第一個行程自己時區的牆上時間。與翻頁公式成對：單一公式、沒有第二個條件。 */
+    var wall = nx.leave_at || nx.start_at.slice(11, 16);
+    items.forEach(function (p) { if (p.alarm_time && (!alarmMax || p.alarm_time > alarmMax)) alarmMax = p.alarm_time; });
+    var offNx = Date.parse(nx.start_at + ":00Z") / 1000 - nx.start_ts;       // 明天第一個行程自己的時區
+    var endsAt = Date.parse(nx.day_key + "T" + (alarmMax || wall) + ":00Z") / 1000 - offNx;
+    if (now >= endsAt) return null;
     var today = dayKeyIn(nx, now), tomorrow = dayKeyIn(nx, now + 86400);
     return {
       word: nx.day_key === today ? "今天" : nx.day_key === tomorrow ? "明天" : "下一天",
       date: prev.day_key, prevId: prev.id, nextId: nx.id,
       rest: events.filter(function (x) { return x.day_key === nx.day_key && x.id !== nx.id; }),
-      items: state.nightPrep.filter(function (p) { return p.target_date === prev.day_key; })
+      items: items
     };
   }
 
