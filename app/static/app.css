@@ -112,6 +112,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;
 }
 .card-time .leave{flex-basis:100%;color:var(--fg);font-size:.95rem;font-weight:700}
+.card-time .leave .travel{display:block;color:var(--dim);font-size:.85rem;font-weight:600;line-height:1.35}
 .tz-tag{font-size:.72rem;font-weight:700;color:var(--warn-fg);
   background:var(--warn-bg);border:1px solid var(--warn-line);border-radius:6px;padding:.05rem .4rem}
 .card-title{font-size:1.25rem;font-weight:700;line-height:1.4;margin-top:.15rem;word-break:break-word}

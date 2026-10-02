@@ -75,6 +75,9 @@ ADDED_COLUMNS = {
     # 'HH:MM' wall-clock in the event's OWN tz (same tz as start_at): when to walk out the door.
     # Not the start time, and never derived from it. '' = unknown, nothing is shown.
     "leave_at": "TEXT NOT NULL DEFAULT ''",
+    # Short free text: HOW the trip to the first stop goes and about how long (e.g. 'metro L1 about 24
+    # min'). A string, not minutes: the mode matters as much as the number. '' = not checked, nothing shown.
+    "travel_note": "TEXT NOT NULL DEFAULT ''",
 }
 
 
