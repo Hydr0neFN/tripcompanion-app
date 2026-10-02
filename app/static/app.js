@@ -150,6 +150,19 @@
     box.appendChild(more);
     return box;
   }
+  /* 離開一張卡時，它裡面自己展開的東西（「還有 N 項」、小提示、明天後續）一起收回去。
+     這只在卡片本身要收合的那一刻做，而且卡片收合是瞬間的（沒有過場動畫），
+     所以不會在捲動途中留下任何一幀中間狀態（規則 0）。 */
+  function foldInner(card) {
+    var id = card.dataset.id;
+    if (notesOpen[id]) {
+      notesOpen[id] = false;
+      var box = card.querySelector(".notes-fold");
+      if (box) applyNotes(box);
+    }
+    var ds = card.querySelectorAll("details[open]");
+    for (var i = 0; i < ds.length; i++) ds[i].open = false;   // toggle 事件會同步更新 hintOpen／laterOpen
+  }
   function applyNotes(box) {
     var items = box.querySelectorAll(".note-item"), more = box.querySelector(".note-more");
     var shown = +box.dataset.shown, open = !!notesOpen[box.dataset.id];
@@ -408,14 +421,13 @@
     if (e.eve) body.appendChild(eveRow(e.eve));
     if (e.location) {
       var r = el("div", "row");
-      r.appendChild(el("div", "row-label", "地點"));
       var a = el("a", "maplink");
       a.href = mapsUrl(e.location);
       a.target = "_blank";
       a.rel = "noopener";
       a.appendChild(el("span", null, "📍"));
       a.appendChild(el("span", "loc", e.location));
-      a.appendChild(el("span", "arrow", "在地圖開啟 ›"));
+      a.appendChild(el("span", "arrow", "看地圖 ›"));
       r.appendChild(a);
       body.appendChild(r);
     }
@@ -647,7 +659,7 @@
     var refTop = ref.getBoundingClientRect().top;
     var open = $timeline.querySelectorAll(".card.settled");
     for (var i = 0; i < open.length; i++) {
-      if (open[i] !== nowCard) open[i].classList.remove("settled");
+      if (open[i] !== nowCard) { foldInner(open[i]); open[i].classList.remove("settled"); }
     }
     expandCard(nowCard, true);
     expandedCard = nowCard;
@@ -675,7 +687,7 @@
       applyFocus(target);
       var open = $timeline.querySelectorAll(".card.settled");
       for (var i = 0; i < open.length; i++) {
-        if (open[i] !== target) open[i].classList.remove("settled");
+        if (open[i] !== target) { foldInner(open[i]); open[i].classList.remove("settled"); }
       }
       expandCard(target, true);
       expandedCard = target;
@@ -840,7 +852,7 @@
     var focusCard0 = focus;
     var restTop = focus.getBoundingClientRect().top;   // 使用者實際停住的位置
     for (var k = 0; k < open.length; k++) {
-      if (open[k] !== focus) open[k].classList.remove("settled");
+      if (open[k] !== focus) { foldInner(open[k]); open[k].classList.remove("settled"); }
     }
     expandCard(focusCard0);
     expandedCard = focusCard0;

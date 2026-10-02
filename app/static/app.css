@@ -49,7 +49,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 /* 兩行都強制單行：頁首一換行就變高，snapTop() 跟著漂，
    IO 的錨線帶和對齊用的線就不再是同一條 → 焦點會判到隔壁那張。 */
 .trip-title,.trip-clock{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
-.trip-title{font-size:min(1.1rem,24px);font-weight:800;letter-spacing:.03em}
+/* 日期在右邊的日期軌上，城市在每張卡的小字裡：頂欄不再重複寫一次 */
+.trip-title{display:none}
 .trip-clock{font-size:min(.85rem,18px);color:var(--dim);font-variant-numeric:tabular-nums}
 .edit-toggle{
   background:var(--card2);border:1px solid var(--line);border-radius:999px;
@@ -67,8 +68,8 @@ button{font:inherit;color:inherit;cursor:pointer}
    沒有任何「沒有卡片」的空隙 —— 吸附判定不會在日期交界翻面。 */
 .day-tag{
   display:flex;align-items:center;gap:.6rem;
-  padding:.6rem var(--pad) .1rem;
-  color:var(--dim);font-size:.92rem;font-weight:800;letter-spacing:.08em;
+  padding:.45rem var(--pad) 0;
+  color:var(--dim2);font-size:min(.72rem,13px);font-weight:700;letter-spacing:.06em;
 }
 .day-tag::after{content:"";flex:1;height:1px;background:var(--line)}
 .card.past .day-tag{color:var(--dim2)}
@@ -99,7 +100,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card.now.focusview{box-shadow:0 0 0 1px var(--cat,var(--accent)) inset, 0 12px 34px rgba(0,0,0,.5)}
 
 .card-head{
-  display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:.8rem;
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:.6rem;
   align-items:start;width:100%;
   background:none;border:0;text-align:left;padding:.9rem var(--pad);
 }
@@ -108,12 +109,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .card-head > .chev{grid-column:3;grid-row:1}
 .card-head > .head-main{grid-column:1 / -1;grid-row:2;min-width:0;margin-top:.5rem}
 .cat-icon{
-  flex:none;width:min(2.9rem,56px);height:min(2.9rem,56px);border-radius:13px;display:grid;place-items:center;
-  font-size:min(1.55rem,30px);background:color-mix(in srgb,var(--cat) 20%,transparent);
+  flex:none;width:min(1.9rem,34px);height:min(1.9rem,34px);border-radius:10px;display:grid;place-items:center;
+  font-size:min(1rem,19px);background:color-mix(in srgb,var(--cat) 20%,transparent);
 }
 .head-top{min-width:0}
 .card-time{
-  font-size:1.3rem;font-weight:800;color:var(--cat);font-variant-numeric:tabular-nums;
+  font-size:min(1.2rem,27px);font-weight:800;color:var(--cat);font-variant-numeric:tabular-nums;
   display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem;
 }
 .card-time .leave{flex-basis:100%;color:var(--fg);font-size:.95rem;font-weight:700}
@@ -159,13 +160,13 @@ button{font:inherit;color:inherit;cursor:pointer}
 .row:first-child{margin-top:0}
 .row-label{font-size:.78rem;color:var(--dim2);letter-spacing:.1em;font-weight:700}
 .maplink{
-  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .6rem;margin-top:.25rem;
-  background:var(--card2);border:1px solid var(--line);border-radius:12px;
-  padding:.72rem min(.8rem,13px);color:var(--fg);text-decoration:none;font-size:1rem;font-weight:600;
+  display:flex;flex-wrap:nowrap;align-items:center;gap:.45rem;margin-top:0;
+  background:var(--card2);border:1px solid var(--line);border-radius:10px;
+  padding:.4rem min(.65rem,11px);color:var(--fg);text-decoration:none;font-size:.85rem;font-weight:600;
 }
-/* 地名長時，「在地圖開啟 ›」整組掉到下一行靠右，不再被擠成一欄寬、一行一個字 */
-.maplink .loc{flex:1 1 0;min-width:6rem;overflow-wrap:anywhere}
-.maplink .arrow{margin-left:auto;flex:none;white-space:nowrap;color:var(--accent);font-size:.85rem;font-weight:700}
+/* 地圖那一行永遠只占一行：地名放不下就用「…」，連結不換行（完整地名在地圖裡看） */
+.maplink .loc{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.maplink .arrow{margin-left:auto;flex:none;white-space:nowrap;color:var(--accent);font-size:.78rem;font-weight:700}
 .code-box{
   margin-top:.25rem;background:#0d1420;border:1px dashed var(--accent);border-radius:12px;
   padding:.6rem min(.8rem,13px);font-size:1.5rem;font-weight:800;letter-spacing:.18em;
