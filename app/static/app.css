@@ -401,7 +401,6 @@ textarea{min-height:5rem;resize:vertical}
 /* 按下立刻亮、放開才慢慢退 —— 跟 iOS 一樣 */
 .pc-key.down{background:rgba(255,255,255,.42);transition:none}
 .pc-num{font-size:2.15rem;font-weight:300}
-.pc-abc{font-size:.58rem;font-weight:600;letter-spacing:.16em;margin-top:.18rem;min-height:.75em}
 .pc-act{background:none;border:0;color:#fff;font:inherit;font-size:1.05rem;padding:.6rem;
   place-self:center;-webkit-tap-highlight-color:transparent}
 .pc-key:focus-visible,.pc-act:focus-visible{outline:2px solid var(--accent);outline-offset:3px}

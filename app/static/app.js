@@ -849,10 +849,25 @@
      也不能改選別張，否則「往下滑一點就被拉回卡頂」，下半張永遠看不到。
      卡頂離錨線不到 24px 仍然照舊滑進去對齊（那是停在兩張之間）；卡底快滑過錨線（剩 120px）也照舊，
      由下一張接手。 */
+  var sabProbe = null;       // 量 home indicator 的高度（env(safe-area-inset-bottom)）
+  function visibleBottom() {
+    if (!sabProbe) {
+      sabProbe = document.createElement("div");
+      sabProbe.style.cssText = "position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;" +
+        "pointer-events:none;padding-bottom:env(safe-area-inset-bottom)";
+      document.body.appendChild(sabProbe);
+    }
+    var sab = parseFloat(getComputedStyle(sabProbe).paddingBottom) || 0;
+    return window.innerHeight - sab - 8;      // 手指真正看得到的最下緣
+  }
+  /* 「高」是相對真正看得到的範圍（扣掉 home indicator）：差幾十 px 蓋在 home indicator 下的卡也算高。
+     讀到的位置：卡頂已在錨線上方一段、卡底還在「錨線到螢幕底」的 65% 之下 → 還有東西沒看完，放著不動。
+     卡底進到上面 35%（卡尾巴整個看得到、下一張已經露出一大塊）→ settle 接手，往下一張滑進錨線：
+     這樣「再滑一下就是下一張」，不必把卡一路捲到只剩 120px 才換。 */
   function readingInside(card) {
     if (!card || card !== expandedCard) return false;
-    var line = snapTop(), r = card.getBoundingClientRect();
-    return r.height > window.innerHeight - line - 8 && r.top < line - 24 && r.bottom > line + 120;
+    var line = snapTop(), vb = visibleBottom(), r = card.getBoundingClientRect();
+    return r.height > vb - line && r.top < line - 24 && r.bottom > line + (vb - line) * 0.65;
   }
   function settle() {
     if (swapping || touching || gliding || topPending) return;
@@ -1282,7 +1297,6 @@
 
   /* iOS 解鎖畫面式的 PIN：位數固定、按滿自動送出、錯了整排點點抖一下再清空。
      伺服器只給位數（pin_len）；PIN 不是純數字時給 0，退回下面的一般輸入框。 */
-  var KEY_LETTERS = ["", "", "ABC", "DEF", "GHI", "JKL", "MNO", "PQRS", "TUV", "WXYZ"];
 
   /* 網站鎖著時才會叫到這裡（refresh 拿到 401）。輪詢每 30 秒還會再叫一次，已經開著就別疊第二層。
      沒有「取消」：關掉只剩一片空白，沒意義。 */
@@ -1311,7 +1325,6 @@
       b.type = "button";
       b.setAttribute("aria-label", String(n));
       b.appendChild(el("span", "pc-num", String(n)));
-      b.appendChild(el("span", "pc-abc", KEY_LETTERS[n]));
       // 按下就算（iOS 也是），不等手指放開；click 只接鍵盤觸發的（detail === 0）
       b.addEventListener("pointerdown", function (e) {
         e.preventDefault();
