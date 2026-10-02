@@ -1074,7 +1074,7 @@
     form.appendChild(field("⚠ 注意事項（顯示在卡片最上方）", "warning", ev && ev.warning, "textarea"));
     form.appendChild(field("出門時間（HH:MM，該行程所在時區的時間；不確定就留空）", "leave_at",
       ev && ev.leave_at, "text"));
-    form.appendChild(field("交通方式與時間（短，例：地鐵 L1 約 24 分；不確定就留空）", "travel_note",
+    form.appendChild(field("怎麼去、要多久（例：地鐵 L1 約 24 分，要有「約」；沒查過就留空）", "travel_note",
       ev && ev.travel_note, "text"));
     form.appendChild(field("備註", "notes", ev && ev.notes, "textarea"));
     form.appendChild(field("💡 小提示（空一行分段；每段第一行是摘要，其餘點開才看得到）",
