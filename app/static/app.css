@@ -52,6 +52,15 @@ button{font:inherit;color:inherit;cursor:pointer}
 .trip-title,.trip-clock{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
 /* 日期在右邊的日期軌上，城市在每張卡的小字裡：頂欄不再重複寫一次 */
 .trip-title{display:none}
+/* 資料不是即時的：同一行換成琥珀色提示，高度不變（只有水平 padding），不動頂欄的幾何 */
+.trip-clock.stale{display:inline-block;max-width:100%;padding:0 .55rem;border-radius:7px;
+  background:var(--warn-bg);color:var(--warn-fg);border:0;box-shadow:inset 0 0 0 1px var(--warn-line);
+  font-size:min(.8rem,17px);font-weight:700}
+.loadfail{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:5rem 1rem}
+.loadfail-msg{font-size:1.15rem;font-weight:700;color:var(--fg)}
+.loadfail-btn{min-height:48px;padding:0 1.8rem;border-radius:999px;border:0;background:var(--accent);
+  color:#04121f;font-weight:800;font-size:1.05rem}
+.loadfail-btn:disabled{opacity:.5}
 .trip-clock{font-size:min(.85rem,18px);color:var(--dim);font-variant-numeric:tabular-nums}
 .edit-toggle{
   background:var(--card2);border:1px solid var(--line);border-radius:999px;

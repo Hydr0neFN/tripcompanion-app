@@ -15,7 +15,7 @@
   var qs = new URLSearchParams(location.search);
   var DEBUG_NOW = qs.get("debug_now") || "";
 
-  var state = { events: [], nightPrep: [], rev: -1, editing: false, nowTs: 0, fetchedAt: 0,
+  var state = { events: [], nightPrep: [], stale: false, liveAt: 0, rev: -1, editing: false, nowTs: 0, fetchedAt: 0,
                 clockLabel: "", tzChoices: [], tripTz: "" };
   var PEEK = 8;                 // 焦點卡離頂欄的距離（px）。原本是 64，讓前一張露臉；那條被壓暗的殘影擋視線，已拿掉
   var focusEventId = null;      // 停在錨線上的那張 — 只換高亮，不動版面
@@ -52,6 +52,10 @@
     if (cls) n.className = cls;
     if (text != null) n.textContent = text;
     return n;
+  }
+  /* 編輯模式用：沒有 status ＝ 根本沒連上伺服器（瀏覽器丟的是英文原文），其他才是伺服器自己的訊息 */
+  function failMsg(err) {
+    return err && err.status ? err.message : "沒網路，沒完成。有訊號再試一次";
   }
   function api(path, opts) {
     opts = opts || {};
@@ -523,7 +527,7 @@
       if (!confirm("確定刪除「" + e.title + "」？連同它的票券檔案一起刪掉。")) return;
       api("/api/events/" + e.id, { method: "DELETE" })
         .then(function () { toast("已刪除"); refresh(true); })
-        .catch(function (err) { toast(err.message); });
+        .catch(function (err) { toast(failMsg(err)); });
     });
     row.appendChild(del);
     return row;
@@ -532,7 +536,7 @@
   function setOrder(firstId, secondId) {   // firstId 會排在 secondId 前面
     api("/api/events/reorder", { json: { ids: [firstId, secondId] } })
       .then(function () { refresh(true); })
-      .catch(function (err) { toast(err.message); });
+      .catch(function (err) { toast(failMsg(err)); });
   }
 
   function render() {
@@ -1013,39 +1017,108 @@
         } catch (err) { /* 不支援就維持旅程時區 */ }
       }
     }
+    /* 畫面上的資料不是這一次連線拿到的（離線開啟，或線上但這次抓失敗）→ 頂端那一行改成提示，
+       家人才知道這不是即時的。同一行、同樣高度，不動頂欄的幾何。連上、更新成功後立刻換回時鐘。
+       用「沒網路」陳述狀況；不用「離線」（長輩會以為是自己按到飛航模式）。 */
+    $clock.classList.toggle("stale", !!state.stale);
+    if (state.stale) {
+      $clock.textContent = "沒網路・" + relTime(state.liveAt) + " 的資料";
+      return;
+    }
     $clock.textContent = (clockLabel ? clockLabel + " " : "") + label +
                          (DEBUG_NOW ? "（測試模式）" : "");
   }
   function pad(n) { return (n < 10 ? "0" : "") + n; }
 
   // ------------------------------------------------------------------ 資料
+  /* 最後一次成功的 /api/state 存在這支手機的 localStorage：沒網路時（地鐵裡）冷啟動還看得到行程。
+     只存在裝置上；401（沒解鎖／PIN 換了）一律清掉，不會拿舊資料給一個被鎖住的裝置看。
+     寫入照舊要連線（沒有離線寫入佇列）。 */
+  var STORE_KEY = "tc_state_v1";
+  function saveState(d, t) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ t: t, d: d })); } catch (e) { /* 滿了或被擋：略過 */ }
+  }
+  function loadSaved() {
+    try {
+      var s = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      return s && s.d && s.d.events && s.t ? s : null;
+    } catch (e) { return null; }
+  }
+  function clearSaved() { try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ } }
+
+  /* 「昨天 21:14」：今天／昨天不寫日期（人在國外對這兩個詞最有感），前天以上才寫 12/28 21:14 */
+  function relTime(ts) {
+    var d = new Date(ts), n = new Date();
+    var day0 = function (x) { return new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(); };
+    var diff = Math.round((day0(n) - day0(d)) / 86400000);
+    var hm = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    if (diff <= 0) return "今天 " + hm;
+    if (diff === 1) return "昨天 " + hm;
+    return pad(d.getMonth() + 1) + "/" + pad(d.getDate()) + " " + hm;
+  }
+
+  function showLoadFail() {
+    state.failShown = true;
+    $timeline.textContent = "";
+    var box = el("div", "loadfail");
+    box.appendChild(el("div", "loadfail-msg", "現在連不上網路"));
+    var b = el("button", "loadfail-btn", "再試一次");
+    b.type = "button";
+    b.addEventListener("click", function () {
+      b.disabled = true;
+      refresh(true).then(function () { if (!state.events.length) b.disabled = false; });
+    });
+    box.appendChild(b);
+    $timeline.appendChild(box);
+  }
+
+  function applyState(d, at, stale, force) {
+    if (state.failShown) { state.failShown = false; force = true; }
+    state.events = d.events;
+    state.rev = d.rev;
+    if (d.title) document.title = d.title;
+    state.nowTs = d.now_ts;
+    state.fetchedAt = at;      // 用來把伺服器時鐘往前推；舊資料要從「抓到的那一刻」起算，不是從現在
+    state.liveAt = at;
+    state.stale = !!stale;
+    state.nowLabelBase = d.now_label;
+    state.clockLabel = d.clock_label || "";
+    state.tzChoices = d.tz_choices || [];
+    state.nightPrep = d.night_prep || [];
+    state.tripTz = d.trip_tz || "";
+    // 伺服器給的旅程時區牆上時間與 UTC 的差，用來在本機推進時鐘
+    state.tzOffsetSec = tripTzOffset(d.now_ts, d.now_label);
+    $editToggle.textContent = state.editing ? "結束編輯" : "編輯";
+    $editToggle.classList.toggle("on", state.editing);
+    if (force) lastRenderKey = "";
+    render();
+    tickClock();
+  }
+
   function refresh(force) {
     return api("/api/state").then(function (d) {
-      state.events = d.events;
-      state.rev = d.rev;
-      if (d.title) document.title = d.title;
-      state.nowTs = d.now_ts;
-      state.fetchedAt = Date.now();
-      state.nowLabelBase = d.now_label;
-      state.clockLabel = d.clock_label || "";
-      state.tzChoices = d.tz_choices || [];
-      state.nightPrep = d.night_prep || [];
-      state.tripTz = d.trip_tz || "";
-      // 伺服器給的旅程時區牆上時間與 UTC 的差，用來在本機推進時鐘
-      state.tzOffsetSec = tripTzOffset(d.now_ts, d.now_label);
-      $editToggle.textContent = state.editing ? "結束編輯" : "編輯";
-      $editToggle.classList.toggle("on", state.editing);
-      if (force) lastRenderKey = "";
-      render();
-      tickClock();
+      var at = Date.now();
+      saveState(d, at);
+      applyState(d, at, false, force);
     }).catch(function (err) {
-      // 沒解鎖（或 30 天過期、PIN 換了）：整個網站鎖著，直到輸入 PIN
+      // 沒解鎖（或 100 天過期、PIN 換了）：整個網站鎖著，直到輸入 PIN；舊資料一律清掉
       if (err.status === 401) {
+        clearSaved();
         state.pinLen = (err.data && err.data.pin_len) || 0;
         openPin();
         return;
       }
       console.warn("refresh failed", err);
+      /* 這一次沒拿到即時資料（沒網路，或伺服器回錯）。畫面上有資料就留著、標成「不是即時的」；
+         還沒有任何資料：用上次存的（離線冷啟動）；連存的都沒有才顯示「現在連不上網路」。 */
+      if (state.events.length) {
+        state.stale = true;
+        tickClock();
+      } else {
+        var s = loadSaved();
+        if (s) applyState(s.d, s.t, true, true);
+        else showLoadFail();
+      }
     });
   }
   function tripTzOffset(ts, label) {
@@ -1153,7 +1226,7 @@
       var p = ev ? api("/api/events/" + ev.id, { method: "PUT", json: d })
                  : api("/api/events", { json: d });
       p.then(function () { closeModal(); toast("已儲存"); refresh(true); })
-       .catch(function (x) { err.textContent = x.message; save.disabled = false; });
+       .catch(function (x) { err.textContent = failMsg(x); save.disabled = false; });
     });
     body.appendChild(form);
 
@@ -1181,7 +1254,7 @@
         if (!confirm("刪除 " + f.name + "？")) return;
         api("/api/attachments/" + f.id, { method: "DELETE" })
           .then(function () { closeModal(); toast("附件已刪除"); refresh(true); })
-          .catch(function (e2) { toast(e2.message); });
+          .catch(function (e2) { toast(failMsg(e2)); });
       });
       b.appendChild(x);
       list.appendChild(b);
@@ -1198,7 +1271,7 @@
       fd.append("file", up.files[0]);
       api("/api/events/" + ev.id + "/attachments", { method: "POST", body: fd })
         .then(function () { closeModal(); toast("票券已上傳"); refresh(true); })
-        .catch(function (e2) { toast(e2.message); up.value = ""; });
+        .catch(function (e2) { toast(failMsg(e2)); up.value = ""; });
     });
     box.appendChild(up);
     return box;
@@ -1472,8 +1545,15 @@
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden) { syncTextSize(true); refresh(false); }
   });
+  window.addEventListener("online", function () { refresh(false); });
   setInterval(function () { refresh(false); }, POLL_MS);
   setInterval(function () { render(); tickClock(); }, 15000);
+  /* 離線也能打開：service worker 只快取 App 本體（見 sw.js） */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw").catch(function () { /* 不支援或被擋：照舊要連線 */ });
+    });
+  }
 
   refresh(true);
 })();

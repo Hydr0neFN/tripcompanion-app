@@ -13,7 +13,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 from fastapi import Body, FastAPI, File, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -729,6 +729,16 @@ def manifest():
             {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png"},
         ],
     }, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/sw")
+def service_worker():
+    """Served from the root so its scope is the whole site. __V__ = the static-files hash, so each deploy
+    gets its own cache name. The path has NO .js extension on purpose: Cloudflare caches *.js at the edge and
+    rewrote Cache-Control to max-age=14400, which would delay every deploy of the worker by hours."""
+    js = (BASE / "static" / "sw.js").read_text(encoding="utf-8").replace("__V__", templates.env.globals["static_v"])
+    return Response(js, media_type="text/javascript",
+                    headers={"Cache-Control": "no-store", "Service-Worker-Allowed": "/"})
 
 
 @app.get("/healthz")
