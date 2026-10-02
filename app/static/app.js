@@ -304,11 +304,12 @@
     back.addEventListener("click", function () { jumpToCard(cardById(ev.prevId)); });
     hd.appendChild(back);
     box.appendChild(hd);
-    var morning = ev.word === "明天" ? "明早" : ev.word === "今天" ? "今早" : "";
     var alarms = ev.items.filter(function (x) { return x.alarm_time; });
     var rest = ev.items.filter(function (x) { return !x.alarm_time; });
     alarms.forEach(function (x) {
-      box.appendChild(prepRow(x, "night-alarm", morning + "鬧鐘 " + x.alarm_time, x.title));
+      // 「建議」＝可考慮、不是命令。不在這行併「· HH:MM 出門」：大字體的鬧鐘行會折成 3–5 行；
+      // 出門時間在下面第一站那張卡上（leave_at），不重複
+      box.appendChild(prepRow(x, "night-alarm", "建議 " + x.alarm_time + " 起床", x.title));
     });
     rest.forEach(function (x) { box.appendChild(prepRow(x, "", x.title)); });
     box.appendChild(el("div", "night-sep", ev.word + "第一站"));
