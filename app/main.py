@@ -491,6 +491,13 @@ def reorder_events(request: Request, payload: dict = Body(...)):
 TIME_RE = re.compile(r"^([01][0-9]|2[0-3]):[0-5][0-9]$")
 
 
+def as_position(v):
+    """An int 0..9999 (bool excluded), else None."""
+    if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 9999:
+        return None
+    return v
+
+
 def as_bool(v):
     """True/False for real booleans, 0/1, and the strings 'true'/'false'/'1'/'0'; None for anything else.
     Plain truthiness read the string "false" as True."""
@@ -556,6 +563,11 @@ def create_prep(request: Request, payload: dict = Body(...)):
             return jresp({"error": "找不到這個事件"}, 404)
         pos = con.execute("SELECT COALESCE(MAX(position),0)+1 p FROM night_prep WHERE target_date=?",
                           (data["target_date"],)).fetchone()["p"]
+        if "position" in payload:            # explicit position wins over "append at the end"
+            given = as_position(payload.get("position"))
+            if given is None:
+                return jresp({"error": "position 要是 0 到 9999 的整數"}, 400)
+            pos = given
         cur = con.execute(
             "INSERT INTO night_prep(target_date,title,alarm_time,due_time,is_done,linked_event_id,"
             "position) VALUES(:target_date,:title,:alarm_time,:due_time,:is_done,:linked_event_id,"
@@ -576,6 +588,11 @@ def update_prep(request: Request, prep_id: int, payload: dict = Body(...)):
         return jresp({"error": msg}, 400)
     if "is_done" in payload:                 # omitted -> keep, like hint/eve on events
         data["is_done"] = 1 if as_bool(payload.get("is_done")) else 0
+    if "position" in payload:                # omitted -> keep; rows sort by (target_date, position, id)
+        pos = as_position(payload.get("position"))
+        if pos is None:
+            return jresp({"error": "position 要是 0 到 9999 的整數"}, 400)
+        data["position"] = pos
     con = db.connect()
     try:
         if data["linked_event_id"] is not None and not con.execute(
