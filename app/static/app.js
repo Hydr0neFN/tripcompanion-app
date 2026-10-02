@@ -270,7 +270,11 @@
     var wall = nx.leave_at || nx.start_at.slice(11, 16);
     items.forEach(function (p) { if (p.alarm_time && (!alarmMax || p.alarm_time > alarmMax)) alarmMax = p.alarm_time; });
     var offNx = Date.parse(nx.start_at + ":00Z") / 1000 - nx.start_ts;       // 明天第一個行程自己的時區
-    var endsAt = Date.parse(nx.day_key + "T" + (alarmMax || wall) + ":00Z") / 1000 - offNx;
+    /* 有鬧鐘就以鬧鐘為準、不設上限（有人可能刻意設 09:00 的懶覺鬧鐘）。沒有鬧鐘＝沒人需要在特定時間起床，
+       那就在 08:00 或第一個行程的出門／開始時間（取較早）結束；不然「明天全城關門」那種夜晚會一路留到
+       當天上午 10:00，結婚紀念日 9:30 的畫面還寫著「今晚睡前」。 */
+    var endWall = alarmMax || (wall < "08:00" ? wall : "08:00");
+    var endsAt = Date.parse(nx.day_key + "T" + endWall + ":00Z") / 1000 - offNx;
     if (now >= endsAt) return null;
     var today = dayKeyIn(nx, now), tomorrow = dayKeyIn(nx, now + 86400);
     return {
@@ -437,7 +441,8 @@
     }
 
     var body = el("div", "card-body");
-    if (e.eve) body.appendChild(eveRow(e.eve));
+    // 「前一晚要準備」整段都是晚上的語氣（「今晚就放進包包」），只在晚間模式的那張卡出現，白天不顯示
+    if (e.eve && neighbours.evening) body.appendChild(eveRow(e.eve));
     if (e.location) {
       var r = el("div", "row");
       var a = el("a", "maplink");
@@ -817,24 +822,26 @@
   /* 停下來要鎖哪一張。proximity 之下可能停在一張卡的下半部，這時該往前鎖下一張，
      而不是倒退回這張的開頭。仍然是身分導向：從目前焦點出發，只比它和下一張的頂端
      離錨線多遠 —— 正確答案只可能是這兩個之一，不必掃全部卡片。 */
-  function lockTarget() {
+  function lockTarget(skipCurrent) {
     if (!focusCard) return null;
     var i = -1;
     for (var k = 0; k < state.events.length; k++) {
       if (state.events[k].id === focusEventId) { i = k; break; }
     }
     var line = snapTop();
-    var best = focusCard, min = Math.abs(focusCard.getBoundingClientRect().top - line);
+    // skipCurrent：人已經讀完這張高卡並往下捲 → 目標只能是下一張，不能選回這張自己的頂端
+    var best = skipCurrent ? null : focusCard;
+    var min = skipCurrent ? Infinity : Math.abs(focusCard.getBoundingClientRect().top - line);
     /* 前後兩張都要比。只比下一張的話方向是單向的 —— 焦點一旦被帶到第 N+1 張，
        就永遠回不到第 N 張，表現就是「永遠晚一張，從來不會早一張」。 */
-    [i > 0 ? state.events[i - 1] : null,
+    [i > 0 && !skipCurrent ? state.events[i - 1] : null,
      i >= 0 ? state.events[i + 1] : null].forEach(function (ev) {
       var card = ev ? cardById(ev.id) : null;
       if (!card) return;
       var d = Math.abs(card.getBoundingClientRect().top - line);
       if (d < min) { min = d; best = card; }
     });
-    return best;
+    return best || focusCard;
   }
 
   /* 會推動版面的三件事 —— 收合別張、補償、滑進錨線 —— 才留到停下來做。
@@ -864,16 +871,33 @@
      讀到的位置：卡頂已在錨線上方一段、卡底還在「錨線到螢幕底」的 65% 之下 → 還有東西沒看完，放著不動。
      卡底進到上面 35%（卡尾巴整個看得到、下一張已經露出一大塊）→ settle 接手，往下一張滑進錨線：
      這樣「再滑一下就是下一張」，不必把卡一路捲到只剩 120px 才換。 */
-  function readingInside(card) {
-    if (!card || card !== expandedCard) return false;
+  /* 一張比螢幕高的展開卡，人已經捲進去之後：
+       "read" — 還有東西沒看完（卡底在可見底部之下），或人是往回（往上）捲的 → 停在哪就留在哪，不拉回卡頂
+       "next" — 往下捲、卡尾已整個看得到 → 這時停手就滑到下一張（「再滑一下就是下一張」）
+       null   — 不是高卡，或還沒捲進去（卡頂離錨線 24px 內，照舊對齊），或已經捲出去（卡底過了錨線）
+     用「方向」決定，不用一條固定的百分比門檻：固定門檻在中間會留下一段「還是被拉回卡頂」的縫。
+     捲動當下就把 html.reading 打開（updateReading），瀏覽器自己的 proximity 吸附在手指放開的那一刻
+     不會搶先把畫面拉回卡頂；只靠 settle() 太晚了。 */
+  var scrollDir = 0, lastScrollY = window.scrollY;
+  function tallState(card) {
+    if (!card || card !== expandedCard) return null;
     var line = snapTop(), vb = visibleBottom(), r = card.getBoundingClientRect();
-    return r.height > vb - line && r.top < line - 24 && r.bottom > line + (vb - line) * 0.65;
+    if (!(r.height > vb - line) || !(r.top < line - 24) || !(r.bottom > line + 24)) return null;
+    if (r.bottom > vb || scrollDir < 0) return "read";
+    return "next";
+  }
+  function updateReading() {
+    var y = window.scrollY;
+    if (y !== lastScrollY) { scrollDir = y > lastScrollY ? 1 : -1; lastScrollY = y; }
+    if (jumping) return;
+    document.documentElement.classList.toggle("reading", !!tallState(focusCard));
   }
   function settle() {
     if (swapping || touching || gliding || topPending) return;
-    if (readingInside(focusCard)) { document.documentElement.classList.add("reading"); return; }
+    var ts = tallState(focusCard);
+    if (ts === "read") { document.documentElement.classList.add("reading"); return; }
     document.documentElement.classList.remove("reading");
-    var focus = lockTarget();
+    var focus = lockTarget(ts === "next");
     if (!focus) return;
     var open = $timeline.querySelectorAll(".card.settled");
     var extra = false;
@@ -1506,6 +1530,7 @@
   }
   window.addEventListener("scroll", function () {
     lastScrollAt = Date.now();
+    updateReading();
     reobserveIfViewportChanged();
     scheduleSettle();
     checkTop();

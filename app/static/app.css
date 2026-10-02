@@ -282,13 +282,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 /* ------------------------------------------------------------------ hints / preview */
 .hint{margin-top:.1rem;background:none;border:0;padding:.3rem 0;font-size:1rem;line-height:1.5}
 .hint:first-of-type{margin-top:0}
-.hint summary{cursor:pointer;font-weight:600;list-style:none;-webkit-tap-highlight-color:transparent}
+.hint summary{display:block;min-height:48px;box-sizing:border-box;padding:.4rem 0;cursor:pointer;font-weight:600;list-style:none;-webkit-tap-highlight-color:transparent}
 .hint summary::-webkit-details-marker{display:none}
-.hint summary::after{content:" ▸";color:var(--dim)}
-.hint[open] summary::after{content:" ▾"}
+/* ▸／▾ 用跟「還有 N 項 ▾」同一個藍色：家人在備註上學過「藍色小三角＝可以點」，不用再學一次 */
+.hint summary::after{content:" ▸";color:var(--accent)}
+.hint[open] summary::after{content:" ▾";color:var(--accent)}
 .hint-body{margin-top:.15rem;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
 .hint-flat{font-weight:600}
-.eve{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:600;line-height:1.5;font-size:1rem}
+/* 前一晚要準備：一般粗細（小提示的標題行是粗體，旁邊還有藍色小三角）— 兩者晚上會並排出現，
+   前者不能點，不能長得像可以點的那個 */
+.eve{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:400;line-height:1.5;font-size:1rem}
 
 /* ------------------------------------------------------------------ 今晚準備 */
 .night{margin:.2rem var(--pad) .5rem;padding:.7rem var(--pad-s) .5rem;border-radius:14px;
